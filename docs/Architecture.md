@@ -7,7 +7,7 @@ This describes the intended high-level shape of the app. As of Milestone 0, none
 Electron apps are split into two kinds of processes with different capabilities and security boundaries:
 
 - **Main process** (`src/main/`) — a Node.js process. Owns app lifecycle: creating/closing windows, the app menu, quitting. It does **not** contain audio or UI logic.
-- **Preload script** (`src/preload/`) — runs in a privileged context bridging main and renderer. Exposes a minimal, typed API surface via `contextBridge` (with `contextIsolation: true`). This is the *only* path the renderer has to reach main-process capabilities like the filesystem.
+- **Preload script** (`src/preload/`) — runs in a privileged context bridging main and renderer. Exposes a minimal, typed API surface via `contextBridge` (with `contextIsolation: true`). This is the _only_ path the renderer has to reach main-process capabilities like the filesystem.
 - **Renderer process** (`src/renderer/`) — a Chromium browser context running the React UI. Because microphone access and audio analysis (`getUserMedia`, `AnalyserNode` — the Web Audio API) only exist in a browser context, audio capture and pitch detection logic live here, not in main.
 
 ## Anticipated Components (renderer)

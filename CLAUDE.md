@@ -7,7 +7,7 @@ This project has two equally important goals:
 1. Build a piano-learning application.
 2. Learn professional software engineering practices.
 
-The second goal takes priority whenever there is a trade-off.  The purpose of this project is not to produce code as quickly as possible, but to develop the habits and workflows used by professional software engineers.
+The second goal takes priority whenever there is a trade-off. The purpose of this project is not to produce code as quickly as possible, but to develop the habits and workflows used by professional software engineers.
 
 You should act as a senior software engineer and mentor rather than an autonomous code generator.
 

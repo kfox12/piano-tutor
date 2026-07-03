@@ -4,7 +4,7 @@ This roadmap tracks the piano tutor app's milestones. Scope is **microphone-base
 
 ## Completed Milestones
 
-_None yet — project initialization is the first milestone in progress._
+_None yet — project initialization is in progress on `chore/project-init`, not yet merged to `main`._
 
 ## Current Milestone
 
@@ -13,10 +13,10 @@ _None yet — project initialization is the first milestone in progress._
 Set up planning docs and a minimal, buildable Electron + TypeScript + React project skeleton. No feature logic yet.
 
 - [x] Create `docs/` (Roadmap, Architecture, Design-Decisions, Session-Notes)
-- [ ] Scaffold Electron + TypeScript + React project (electron-vite)
-- [ ] Configure ESLint + Prettier
-- [ ] Configure Vitest with a smoke test
-- [ ] Verify `npm run dev`, `npm run build`, `npm test`, `npm run lint` all succeed
+- [x] Scaffold Electron + TypeScript + React project (electron-vite)
+- [x] Configure ESLint + Prettier
+- [x] Configure Vitest with a smoke test
+- [x] Verify `npm run dev`, `npm run build`, `npm test`, `npm run lint` all succeed
 - [ ] Merge `chore/project-init` into `main`
 
 ## Upcoming Milestones
