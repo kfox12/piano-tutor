@@ -9,7 +9,16 @@ class FakeAnalyserNode {
   }
 }
 
+let resumeWasCalled = false
+
 class FakeAudioContext {
+  state: AudioContextState = 'suspended'
+
+  resume(): Promise<void> {
+    resumeWasCalled = true
+    this.state = 'running'
+    return Promise.resolve()
+  }
   createMediaStreamSource(): { connect: () => void } {
     return { connect: vi.fn() }
   }
@@ -34,6 +43,7 @@ function stubGetUserMedia(getUserMedia: ReturnType<typeof vi.fn>): void {
 }
 
 beforeEach(() => {
+  resumeWasCalled = false
   vi.stubGlobal('AudioContext', FakeAudioContext)
 })
 
@@ -58,6 +68,20 @@ describe('useMicrophoneStream', () => {
     expect(result.current.state.status).toBe('requesting')
 
     await waitFor(() => expect(result.current.state.status).toBe('active'))
+  })
+
+  it('resumes the audio context when it starts suspended, so the analyser actually processes audio', async () => {
+    stubGetUserMedia(vi.fn().mockResolvedValue(createFakeStream()))
+
+    const { result } = renderHook(() => useMicrophoneStream())
+    act(() => {
+      result.current.start()
+    })
+    await waitFor(() => expect(result.current.state.status).toBe('active'))
+
+    // Regression check: a suspended context never processes audio, so the
+    // analyser would silently read back silence forever if we forgot this.
+    expect(resumeWasCalled).toBe(true)
   })
 
   it('surfaces permission-denied errors', async () => {

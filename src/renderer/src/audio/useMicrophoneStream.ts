@@ -51,10 +51,17 @@ export function useMicrophoneStream(): UseMicrophoneStreamResult {
     setState({ status: 'requesting' })
     navigator.mediaDevices
       .getUserMedia({ audio: true })
-      .then((stream) => {
+      .then(async (stream) => {
         streamRef.current = stream
         const audioContext = new AudioContext()
         audioContextRef.current = audioContext
+        // AudioContext can start 'suspended' (autoplay policy) even after a
+        // user gesture, since the gesture may no longer be "active" by the
+        // time this async callback runs. Without resuming, the analyser
+        // never processes audio and reads back silence.
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume()
+        }
         const source = audioContext.createMediaStreamSource(stream)
         const analyser = audioContext.createAnalyser()
         analyser.fftSize = 2048
