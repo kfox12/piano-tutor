@@ -64,7 +64,10 @@ export function useMicrophoneStream(): UseMicrophoneStreamResult {
         }
         const source = audioContext.createMediaStreamSource(stream)
         const analyser = audioContext.createAnalyser()
-        analyser.fftSize = 2048
+        // 4096 gives ~2.3+ periods of the lowest piano note (A0, 27.5Hz) at
+        // typical sample rates — pitch detection needs that margin; 2048 was
+        // too tight (~1.1 periods).
+        analyser.fftSize = 4096
         source.connect(analyser)
         setState({ status: 'active', analyser })
       })
