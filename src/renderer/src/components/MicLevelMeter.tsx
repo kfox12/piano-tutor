@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { rms } from '../audio/rms'
 import { useAnalyserFrame } from '../audio/useAnalyserFrame'
-import { useMicrophoneStream } from '../audio/useMicrophoneStream'
+import type { MicrophoneState } from '../audio/useMicrophoneStream'
 
 const ERROR_MESSAGES: Record<string, string> = {
   'permission-denied':
@@ -9,8 +9,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   'no-device': 'No microphone was found. Connect one and try again.'
 }
 
-function MicLevelMeter(): React.JSX.Element {
-  const { state, start, stop } = useMicrophoneStream()
+interface MicLevelMeterProps {
+  state: MicrophoneState
+  start: () => void
+  stop: () => void
+}
+
+function MicLevelMeter({ state, start, stop }: MicLevelMeterProps): React.JSX.Element {
   const [level, setLevel] = useState(0)
   const bufferRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
 
