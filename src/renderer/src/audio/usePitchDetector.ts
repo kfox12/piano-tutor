@@ -1,13 +1,11 @@
 import { useRef, useState } from 'react'
 import { detectPitch } from './detectPitch'
-import { frequencyToNote, type NoteInfo } from './frequencyToNote'
+import { frequencyToNote } from './frequencyToNote'
 import { rmsFloat } from './rmsFloat'
+import { initialStabilizerState, stabilize, type PitchReading } from './stabilizePitchReading'
 import { useAnalyserFrame } from './useAnalyserFrame'
 
-export interface PitchReading {
-  frequency: number
-  note: NoteInfo
-}
+export type { PitchReading }
 
 // Below this RMS, skip running YIN entirely: cheaper than computing it every
 // frame during silence, and guards against weak-periodicity false positives
@@ -18,6 +16,7 @@ const SILENCE_RMS_THRESHOLD = 0.02
 export function usePitchDetector(analyser: AnalyserNode | null): PitchReading | null {
   const [reading, setReading] = useState<PitchReading | null>(null)
   const bufferRef = useRef<Float32Array<ArrayBuffer> | null>(null)
+  const stabilizerRef = useRef(initialStabilizerState())
 
   useAnalyserFrame(analyser, (analyser) => {
     if (!bufferRef.current || bufferRef.current.length !== analyser.fftSize) {
@@ -25,13 +24,14 @@ export function usePitchDetector(analyser: AnalyserNode | null): PitchReading | 
     }
     analyser.getFloatTimeDomainData(bufferRef.current)
 
-    if (rmsFloat(bufferRef.current) < SILENCE_RMS_THRESHOLD) {
-      setReading(null)
-      return
-    }
+    const detected =
+      rmsFloat(bufferRef.current) < SILENCE_RMS_THRESHOLD
+        ? null
+        : detectPitch(bufferRef.current, analyser.context.sampleRate)
 
-    const frequency = detectPitch(bufferRef.current, analyser.context.sampleRate)
-    setReading(frequency ? { frequency, note: frequencyToNote(frequency) } : null)
+    const pitchReading = detected ? { frequency: detected, note: frequencyToNote(detected) } : null
+    stabilizerRef.current = stabilize(stabilizerRef.current, pitchReading)
+    setReading(stabilizerRef.current.committed)
   })
 
   return reading
