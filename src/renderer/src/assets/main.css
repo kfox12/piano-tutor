@@ -13,6 +13,7 @@ body {
   align-items: center;
   justify-content: center;
   flex-direction: column;
+  width: 100%;
   margin-bottom: 80px;
 }
 
@@ -70,8 +71,8 @@ body {
 }
 
 .keyboard-display {
-  width: 100%;
-  max-width: 900px;
+  width: 92%;
+  max-width: 1400px;
   height: auto;
   margin: 0 0 24px;
 }
