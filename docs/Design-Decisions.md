@@ -153,3 +153,74 @@ A running log of significant engineering decisions, in the style of Architecture
 ## 11. Monophonic pitch detection only — simultaneous multi-note input is a documented scope boundary
 
 **Observation, not a decision:** Manual verification confirmed the detector does not identify multiple simultaneously-pressed piano keys. This is expected behavior, not a defect: YIN, like every standard pitch-detection algorithm (autocorrelation, MPM, HPS), estimates exactly one fundamental frequency per buffer. True polyphonic pitch detection (multiple simultaneous notes) requires categorically different techniques — multi-pitch estimation, spectral source separation, or ML-based transcription models — and is a much larger undertaking than this milestone. Roadmap.md's own milestone text already scoped this as converting audio into "a detected note," singular. If chord/multi-note practice is ever wanted, it would warrant its own future milestone and design discussion, not a patch on top of YIN.
+
+---
+
+## 12. SVG over DOM/CSS-divs and Canvas for the keyboard renderer
+
+**Decision:** The 88-key keyboard (`KeyboardDisplay.tsx`) renders as SVG — one `<rect>` per key, generated from a pure layout function.
+
+**Reasoning:** Each key is a data-driven element (`keys.map(key => <rect .../>)`), exactly how React renders arrays of data, with native `onClick` per key. A `viewBox` gives free, aspect-ratio-preserving responsive scaling. No new dependency needed — it's just markup, consistent with the project's plain-CSS, no-design-library approach so far.
+
+**Alternatives considered:**
+
+- _Absolutely-positioned CSS divs_ — a known "CSS piano" technique, but black-key positioning ends up split awkwardly between CSS and JS, and z-index/overlap layering has to be managed by hand.
+- _Canvas_ — rejected outright: an imperative pixel surface has no per-key DOM node to bind React state/click handlers to, so click-to-select-target would need hand-rolled hit-testing math instead of a native `onClick`.
+
+**Trade-offs:** SVG has no z-index by default (later elements paint over earlier ones), so `KeyboardDisplay` must render all white keys before all black keys — a real ordering constraint to remember, not just a stylistic choice, since black keys visually and functionally (for clicks) overlap their neighbors' edges.
+
+---
+
+## 13. Lifted `usePitchDetector` from `PitchReadout` up into `App.tsx`
+
+**Decision:** `usePitchDetector(analyser)` is now called once in `App.tsx`; the resulting `PitchReading` is passed down as a prop to both `PitchReadout` and `KeyboardDisplay`.
+
+**Reasoning:** `KeyboardDisplay` needs the same live pitch reading `PitchReadout` already computed. Each component independently calling the hook would run the O(bufferLength × searchRange) YIN computation twice per animation frame for no benefit, and risked their two independent debounce-stabilizer states silently diverging. Same "lift state up" pattern already used for `useMicrophoneStream` (entry 10).
+
+**Alternatives considered:**
+
+- _Each component calls `usePitchDetector` independently_ — simpler per-component, but wastes real CPU work every frame and risks the divergence bug above.
+
+**Trade-offs:** None significant — this is a pure refactor, manually re-verified (`PitchReadout` still shows the correct note).
+
+---
+
+## 14. Exact name+octave match for "correct," not note-name-only
+
+**Decision:** `deriveKeyboardStates` requires an exact match on both note name and octave for a key to be marked "correct" against the target.
+
+**Reasoning:** A student who clicks middle C (C4) as the target and plays C3 is making a real, common, pedagogically distinct mistake (wrong octave) from actually hitting C4. Collapsing both into "correct" would give false-positive feedback and undermine the app's purpose — teaching where notes sit on *this* keyboard, not abstract note-name recognition. It also matches the interaction itself: the student clicked a specific key, not "any C."
+
+**Alternatives considered:**
+
+- _Note-name-only match (any octave counts as correct)_ — simpler, but masks a real class of mistakes.
+- _A third "close" state for right-name-wrong-octave_ — deliberately not added; the milestone scope asks for binary correct/incorrect, and this is easy to add later without disrupting the current shape if ever wanted.
+
+**Trade-offs:** None significant given the reasoning above; right-name-wrong-octave is classified `incorrect`, same as any other wrong note.
+
+---
+
+## 15. Manual click-to-select target note, with state lifted to `App.tsx`
+
+**Decision:** Clicking a key sets/clears it as the target note (single target only). This state lives in `App.tsx`, not inside `KeyboardDisplay`.
+
+**Reasoning:** Practice Mode (Milestone 4) doesn't exist yet, but its eventual job is exactly "a smarter way to set the target note" — automatically, from a lesson sequence, instead of a manual click. Lifting `targetNote` to `App.tsx` now (a controlled `KeyboardDisplay`, driven by `targetNote`/`onKeyClick` props) means Milestone 4 can later drive it programmatically without restructuring this milestone's work.
+
+**Alternatives considered:**
+
+- _`targetNote` as local state inside `KeyboardDisplay`_ — simpler now, but would trap the target-selection mechanism inside a component Milestone 4 would need to reach into or restructure.
+- _Random target note generator_ — considered and explicitly deferred (see the scoping discussion at the top of this milestone's work) since it starts overlapping with Practice Mode's actual lesson logic.
+
+**Trade-offs:** `App.tsx` now owns more real state than a pure layout shell would. Acceptable at this scale; would revisit (e.g. React context) if a third sibling ever needs the same target/reading data.
+
+---
+
+## 16. Keyboard accessibility gap (observation, not a decision — explicitly deferred)
+
+**Observation, not a decision:** The keyboard is mouse-only. SVG `<rect>` elements aren't natively focusable/tabbable, so a keyboard-only or screen-reader user currently has no way to set a target note. Full accessibility (`role="button"`, `tabIndex`, `aria-pressed`/`aria-label` per key, visible focus ring, Enter/Space handling across 88 elements) is real, non-trivial work for an interaction this milestone itself frames as a temporary Practice-Mode stand-in. Deferred deliberately, not overlooked — worth revisiting once it's clear whether manual click-targeting survives past Milestone 4 as a secondary/debug affordance or disappears entirely.
+
+---
+
+## 17. `#root` needs an explicit width for percentage-based child sizing (implementation note, not a decision)
+
+**Observation, not a decision:** Manual verification showed the keyboard rendering far smaller than intended, and initially "fixing" it with a fixed pixel width made it stop scaling with the window (which is what was actually wanted). Root cause: `#root` had no definite width — `body`'s `justify-content: center` centers `#root` without stretching it, so it sized to its content, leaving `<svg class="keyboard-display" width="100%">` with no meaningful value to resolve its percentage against. Fixed at the source (`#root { width: 100% }`) rather than working around it with fixed pixel dimensions, so `.keyboard-display`'s percentage width now resolves correctly and the keyboard genuinely scales as the window is resized, confirmed manually. Worth remembering for any future UI element that wants percentage-based responsive sizing — the containing block chain needs a definite width somewhere, or the percentage has nothing real to resolve against.
