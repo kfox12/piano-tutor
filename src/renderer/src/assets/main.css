@@ -69,6 +69,43 @@ body {
   margin: 0 0 24px;
 }
 
+.keyboard-display {
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  margin: 0 0 24px;
+}
+
+.piano-key {
+  cursor: pointer;
+  stroke: var(--ev-c-gray-1);
+  stroke-width: 0.5;
+}
+
+.piano-key--white {
+  fill: var(--ev-c-white);
+}
+
+.piano-key--black {
+  fill: var(--ev-c-black-soft);
+}
+
+.piano-key--target {
+  fill: #6988e6;
+}
+
+.piano-key--playing {
+  fill: #f0c419;
+}
+
+.piano-key--correct {
+  fill: #3fb950;
+}
+
+.piano-key--incorrect {
+  fill: #e5534b;
+}
+
 .versions {
   position: absolute;
   bottom: 30px;
