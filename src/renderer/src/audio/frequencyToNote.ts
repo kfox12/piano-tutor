@@ -5,7 +5,7 @@ export interface NoteInfo {
   centsOffset: number
 }
 
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+export const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const A4_MIDI = 69
 const A4_FREQUENCY = 440
 
