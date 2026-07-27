@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMicrophoneStream } from './useMicrophoneStream'
 
 class FakeAnalyserNode {
-  fftSize = 2048
+  fftSize = 4096
   getByteTimeDomainData(array: Uint8Array): void {
     array.fill(128) // silence, matching the real API's "no signal" baseline
   }

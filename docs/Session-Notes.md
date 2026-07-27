@@ -4,6 +4,32 @@ Reverse-chronological log of work sessions. Append a new entry at the top after 
 
 ---
 
+## 2026-07-18
+
+**Work completed:**
+
+- Designed Milestone 2 (Pitch Detection): confirmed hand-rolling YIN over using a library (`pitchy` recorded as a named fallback) — see `docs/Design-Decisions.md` entry 7.
+- Implemented on `feature/pitch-detection` in 8 commits: `fftSize` bump to 4096, extracted a shared `useAnalyserFrame` polling hook (refactoring `MicLevelMeter` onto it), `rmsFloat`, `detectPitch` (YIN) with synthetic-signal tests including an octave-error regression test, `frequencyToNote`, `usePitchDetector`, lifting `useMicrophoneStream` state into `App.tsx` so `PitchReadout` and `MicLevelMeter` can share one analyser, and a debounce fix (`stabilizePitchReading`) found during manual verification.
+- Manual verification against a real piano (low/mid/high registers): note detection works well after the debounce fix. Confirmed as expected, not a bug: simultaneous multi-key presses aren't detected — YIN (like all standard pitch detectors) is inherently monophonic. Documented as a scope boundary (`docs/Design-Decisions.md` entry 11) rather than something to fix.
+- All 33 tests passing, lint/build clean throughout.
+- Updated `docs/Roadmap.md`, `docs/Architecture.md`, `docs/Design-Decisions.md` (entries 7-11).
+
+**New concepts learned:**
+
+- The YIN algorithm: difference function → cumulative mean normalized difference function (the step that actually resists octave errors) → absolute threshold search → parabolic interpolation for sub-sample accuracy.
+- Why pure DSP functions (`detectPitch`, `frequencyToNote`, `rmsFloat`) are dramatically more unit-testable than Milestone 1's hardware-dependent code — synthetic sine waves stand in for a real microphone with no mocking needed, a sharp contrast to `useMicrophoneStream`'s manual-verification-only boundary.
+- Debouncing/hysteresis as a general pattern for smoothing noisy real-time signals: require a new value to win N consecutive frames before committing to it, rather than reacting to every single frame.
+- The buffer-length vs. latency trade-off in real-time audio processing (longer buffer = more periods of low frequencies captured = more accurate, but more delay before a reading is available).
+
+**Remaining work:**
+
+- Merge `feature/pitch-detection` into `main` (pending final go-ahead).
+
+**Suggested next task:**
+Design Milestone 3 (Piano Keyboard Renderer & Visual Feedback) — an on-screen keyboard that highlights the detected note and shows correct/incorrect feedback against a target note.
+
+---
+
 ## 2026-07-04
 
 **Work completed:**

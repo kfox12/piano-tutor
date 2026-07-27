@@ -88,3 +88,68 @@ A running log of significant engineering decisions, in the style of Architecture
 ## 6. `AudioContext` autoplay-suspension gotcha (implementation note, not a decision)
 
 **Observation, not a decision:** During manual verification, the level meter stayed flat despite a granted mic permission. Cause: Chromium's autoplay policy can leave a freshly created `AudioContext` in the `'suspended'` state even after a user gesture (the click on "Start Listening"), because the gesture is no longer considered "active" by the time the `getUserMedia` promise resolves and the `AudioContext` is constructed. A suspended context never processes audio, so the analyser silently reads back silence — no error is thrown. Fix: check `audioContext.state === 'suspended'` and call `await audioContext.resume()` before wiring up the analyser. Worth remembering for Milestone 2, since the pitch detector will read from the same `AnalyserNode`.
+
+---
+
+## 7. Hand-rolled YIN over naive autocorrelation, MPM, or a library (`pitchy`)
+
+**Decision:** Implemented the YIN pitch-detection algorithm ourselves (`detectPitch.ts`) rather than using a third-party library.
+
+**Reasoning:** Piano tone is harmonically rich, which causes naive autocorrelation to lock onto a harmonic of the true pitch (an "octave error" — 2x or 0.5x the real frequency). YIN's cumulative-mean-normalized difference function plus an absolute threshold specifically resists this and is the field-standard for monophonic pitch detection. It's tractable to hand-roll (~100 lines, well documented in the literature), and CLAUDE.md's stated priority is that the learning goal wins trade-offs — this is exactly the "most technically deep milestone" the Roadmap already anticipated.
+
+**Alternatives considered:**
+
+- _`pitchy`_ — a small, well-regarded, zero-dependency McLeod Pitch Method (MPM) library. The pragmatic choice if the goal were shipping fastest. Recorded as a **named fallback**: `detectPitch`'s pure-function signature (`Float32Array` in, `number | null` out) isolates the algorithm behind a boundary a library could drop into later, if real-piano testing ever shows the hand-rolled version is unreliable after reasonable tuning.
+- _Naive autocorrelation_ — simpler, but the octave-error problem it has is exactly what this milestone needed to solve.
+- _FFT / Harmonic Product Spectrum_ — frequency-domain resolution (`sampleRate / fftSize`, ~11.7Hz per bin at 4096/48kHz) is too coarse to reliably distinguish adjacent low notes without extra interpolation work HPS doesn't give for free.
+
+**Trade-offs:** More code to write and test ourselves than dropping in a library; the payoff is a genuine, from-scratch understanding of a real DSP algorithm and zero added runtime dependencies for code that's conceptually central to the app.
+
+---
+
+## 8. Analyser buffer increased to 4096 samples; pitch detector reads float samples
+
+**Decision:** `useMicrophoneStream.ts`'s `analyser.fftSize` increased from 2048 to 4096. The pitch detector reads via `getFloatTimeDomainData` (new `rmsFloat.ts`), while the existing level meter keeps using the byte API (`rms.ts`) unchanged.
+
+**Reasoning:** Reliable low-note detection needs roughly 2+ full periods of the lowest target frequency in the buffer. At 44.1-48kHz, one period of A0 (27.5Hz) is ~1600-1745 samples, so the previous 2048-sample buffer held barely more than one period. `fftSize` must be a power of 2 (Web Audio spec constraint), so 4096 is the next value up, giving ~2.3+ periods of margin. Float samples (`-1..1`, no quantization) matter for YIN's parabolic-interpolation step, which needs sub-sample precision for meaningful cents accuracy.
+
+**Alternatives considered:**
+
+- _8192 samples_ — more margin, but ~170ms latency starts feeling laggy for real-time feedback; rejected.
+- _Leave the level meter on `getFloatTimeDomainData` too_ — no real benefit for a coarse level meter, and would have meant touching already-tested, working code for no reason.
+
+**Trade-offs:** Latency per reading roughly doubled (~42.7ms → ~85.3ms at 48kHz) — still comfortably under the ~100ms threshold where real-time feedback starts feeling laggy.
+
+---
+
+## 9. RMS-based silence gating with a threshold that needs real-hardware tuning
+
+**Decision:** `usePitchDetector` skips running YIN entirely when `rmsFloat` of the current buffer is below `0.02`, returning `null` (no reading) instead.
+
+**Reasoning:** Two independent reasons: performance (skip an O(bufferLength × searchRange) computation ~60x/sec during silence) and robustness (very quiet ambient noise can occasionally show enough weak periodicity to produce a low-confidence false-positive reading; a minimum-RMS pre-filter is a cheap extra guard band on top of YIN's own internal threshold check).
+
+**Alternatives considered:**
+
+- _Rely on YIN's own threshold alone, no separate RMS gate_ — technically sufficient for correctness, but wastes CPU running the full algorithm on silence every frame.
+
+**Trade-offs:** The `0.02` threshold is a starting value, not a validated one — a synthetic unit test can assert the boundary logic ("below threshold → null") but cannot confirm `0.02` is correctly calibrated against a real room's actual noise floor. This needs to stay open to retuning as the app is used in different environments; not something to consider "finished" from this milestone alone.
+
+---
+
+## 10. Lifted `useMicrophoneStream` state from `MicLevelMeter` up into `App.tsx`
+
+**Decision:** `useMicrophoneStream()` is now called in `App.tsx`, with `state`/`start`/`stop` passed down as props to `MicLevelMeter`, and the `AnalyserNode` passed to the new `PitchReadout`.
+
+**Reasoning:** `PitchReadout` needs the same live `AnalyserNode` `MicLevelMeter` already had exclusive access to. Each component independently calling `useMicrophoneStream()` would double-prompt for microphone permission and open two separate audio streams — standard "lift state up" React pattern to share one source of truth between sibling components.
+
+**Alternatives considered:**
+
+- _Each component calls `useMicrophoneStream()` independently_ — simpler per-component, but the double-permission-prompt/double-stream problem makes it not actually viable.
+
+**Trade-offs:** `App.tsx` is no longer a pure layout shell — it now owns real state. Minor increase in coupling, acceptable at this scale; would revisit (e.g. React context) if a third sibling needs the same analyser.
+
+---
+
+## 11. Monophonic pitch detection only — simultaneous multi-note input is a documented scope boundary
+
+**Observation, not a decision:** Manual verification confirmed the detector does not identify multiple simultaneously-pressed piano keys. This is expected behavior, not a defect: YIN, like every standard pitch-detection algorithm (autocorrelation, MPM, HPS), estimates exactly one fundamental frequency per buffer. True polyphonic pitch detection (multiple simultaneous notes) requires categorically different techniques — multi-pitch estimation, spectral source separation, or ML-based transcription models — and is a much larger undertaking than this milestone. Roadmap.md's own milestone text already scoped this as converting audio into "a detected note," singular. If chord/multi-note practice is ever wanted, it would warrant its own future milestone and design discussion, not a patch on top of YIN.

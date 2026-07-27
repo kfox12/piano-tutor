@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { rms } from '../audio/rms'
-import { useMicrophoneStream } from '../audio/useMicrophoneStream'
+import { useAnalyserFrame } from '../audio/useAnalyserFrame'
+import type { MicrophoneState } from '../audio/useMicrophoneStream'
 
 const ERROR_MESSAGES: Record<string, string> = {
   'permission-denied':
@@ -8,28 +9,24 @@ const ERROR_MESSAGES: Record<string, string> = {
   'no-device': 'No microphone was found. Connect one and try again.'
 }
 
-function MicLevelMeter(): React.JSX.Element {
-  const { state, start, stop } = useMicrophoneStream()
+interface MicLevelMeterProps {
+  state: MicrophoneState
+  start: () => void
+  stop: () => void
+}
+
+function MicLevelMeter({ state, start, stop }: MicLevelMeterProps): React.JSX.Element {
   const [level, setLevel] = useState(0)
+  const bufferRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
 
-  useEffect(() => {
-    if (state.status !== 'active') {
-      return
+  const analyser = state.status === 'active' ? state.analyser : null
+  useAnalyserFrame(analyser, (analyser) => {
+    if (!bufferRef.current || bufferRef.current.length !== analyser.fftSize) {
+      bufferRef.current = new Uint8Array(analyser.fftSize)
     }
-
-    const analyser = state.analyser
-    const buffer = new Uint8Array(analyser.fftSize)
-    let frameId: number
-
-    const tick = (): void => {
-      analyser.getByteTimeDomainData(buffer)
-      setLevel(rms(buffer))
-      frameId = requestAnimationFrame(tick)
-    }
-    frameId = requestAnimationFrame(tick)
-
-    return () => cancelAnimationFrame(frameId)
-  }, [state])
+    analyser.getByteTimeDomainData(bufferRef.current)
+    setLevel(rms(bufferRef.current))
+  })
 
   return (
     <div className="mic-level-meter">
