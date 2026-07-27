@@ -1,5 +1,6 @@
 import { useMicrophoneStream } from './audio/useMicrophoneStream'
 import { usePitchDetector } from './audio/usePitchDetector'
+import KeyboardDisplay from './components/KeyboardDisplay'
 import MicLevelMeter from './components/MicLevelMeter'
 import PitchReadout from './components/PitchReadout'
 import Versions from './components/Versions'
@@ -14,6 +15,7 @@ function App(): React.JSX.Element {
       <h1>Piano Tutor</h1>
       <MicLevelMeter state={state} start={start} stop={stop} />
       <PitchReadout reading={reading} />
+      <KeyboardDisplay currentReading={reading} targetNote={null} onKeyClick={() => {}} />
       <Versions></Versions>
     </>
   )
