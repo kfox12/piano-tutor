@@ -13,6 +13,7 @@ body {
   align-items: center;
   justify-content: center;
   flex-direction: column;
+  width: 100%;
   margin-bottom: 80px;
 }
 
@@ -67,6 +68,43 @@ body {
   color: var(--ev-c-text-1);
   font-weight: 600;
   margin: 0 0 24px;
+}
+
+.keyboard-display {
+  width: 92%;
+  max-width: 1400px;
+  height: auto;
+  margin: 0 0 24px;
+}
+
+.piano-key {
+  cursor: pointer;
+  stroke: var(--ev-c-gray-1);
+  stroke-width: 0.5;
+}
+
+.piano-key--white {
+  fill: var(--ev-c-white);
+}
+
+.piano-key--black {
+  fill: var(--ev-c-black-soft);
+}
+
+.piano-key--target {
+  fill: #6988e6;
+}
+
+.piano-key--playing {
+  fill: #f0c419;
+}
+
+.piano-key--correct {
+  fill: #3fb950;
+}
+
+.piano-key--incorrect {
+  fill: #e5534b;
 }
 
 .versions {

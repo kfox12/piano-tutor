@@ -4,6 +4,37 @@ Reverse-chronological log of work sessions. Append a new entry at the top after 
 
 ---
 
+## 2026-07-27
+
+**Work completed:**
+
+- Merged `feature/pitch-detection` (via GitHub PR) into `main` — Milestone 2 officially done.
+- Designed Milestone 3 (Piano Keyboard Renderer & Visual Feedback). Resolved a scope gap the Roadmap text didn't answer on its own — "correct/incorrect feedback against a target note" needs a target note to come from somewhere, but Practice Mode (which would normally own that) isn't built yet — by adding a manual click-to-select target picker as an explicit, temporary stand-in.
+- Implemented on `feature/piano-renderer` in 11 commits: exported `NOTE_NAMES`, `generateKeyboardLayout` (pure, tested — 88 keys, correct black-key positioning), `deriveKeyboardStates` (pure, tested — idle/target/playing/correct/incorrect state machine), lifted `usePitchDetector` into `App.tsx` (avoiding duplicate YIN computation across `PitchReadout` and the new keyboard), the SVG `KeyboardDisplay`/`PianoKey` components, click-to-target interaction, CSS styling, and a click-handling test.
+- Manual verification against a real piano surfaced and fixed two real bugs:
+  1. A duplicate-DOM test failure from missing `afterEach(cleanup)` — this project doesn't use Vitest's `globals: true`, so `@testing-library/react`'s automatic cleanup never self-registers.
+  2. A keyboard-sizing bug: `#root` had no definite width, so the SVG's `width: 100%` had nothing real to resolve against. Fixed at the root (no pun intended) by giving `#root` an explicit `width: 100%` rather than papering over it with a fixed pixel width — the keyboard now genuinely scales with window resizing, confirmed manually.
+- Confirmed working end-to-end: click a key to set it as target, play it on a real piano, see correct (green) / incorrect (red) feedback live.
+- All 48 tests passing, lint/build clean throughout.
+- Updated `docs/Roadmap.md`, `docs/Architecture.md`, `docs/Design-Decisions.md` (entries 12-17).
+
+**New concepts learned:**
+
+- SVG as a declarative, data-driven rendering target for React (`data.map(d => <rect .../>)`) versus Canvas's imperative pixel-pushing model — SVG keeps click handling and state-driven styling native to React; Canvas would need hand-rolled hit-testing.
+- SVG has no z-index by default — paint order is purely document order, which matters when elements (like black piano keys) visually overlap their neighbors.
+- The CSS percentage-sizing trap: a percentage width only resolves against a *definite* containing-block width. A flex-centered container with no explicit width (like this app's `#root`) doesn't provide one, so a descendant's `width: 100%` can silently resolve to something much smaller than expected instead of erroring.
+- Vitest without `globals: true` requires explicit `afterEach(cleanup)` for DOM-querying component tests — `@testing-library/react`'s auto-cleanup only self-registers when it detects a *global* `afterEach`, not an imported one.
+- Lifting state up as a recurring pattern for sharing one computed value (a mic stream, a pitch reading) between sibling components without either duplicating work or reaching for heavier state management.
+
+**Remaining work:**
+
+- Merge `feature/piano-renderer` into `main` (pending final go-ahead).
+
+**Suggested next task:**
+Design Milestone 4 (Practice Mode / Lesson Logic) — sequences of target notes/exercises, scoring, and session start/stop flow, replacing this milestone's manual click-to-select target picker with an automated one.
+
+---
+
 ## 2026-07-18
 
 **Work completed:**

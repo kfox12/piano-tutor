@@ -1,6 +1,6 @@
 # Architecture
 
-This describes the high-level shape of the app. Sections below note which parts are implemented (Milestones 0-2: project skeleton, mic capture, pitch detection) versus still anticipated (keyboard display, practice mode, progress tracking).
+This describes the high-level shape of the app. Sections below note which parts are implemented (Milestones 0-3: project skeleton, mic capture, pitch detection, keyboard renderer) versus still anticipated (practice mode, progress tracking).
 
 ## Process Model (Electron)
 
@@ -17,10 +17,10 @@ Electron apps are split into two kinds of processes with different capabilities 
 - **Audio capture** (`src/renderer/src/audio/useMicrophoneStream.ts`) — requests mic permission, manages the audio input stream, exposes an `AnalyserNode` while active.
 - **Pitch detection** (`src/renderer/src/audio/detectPitch.ts` + `frequencyToNote.ts` + `usePitchDetector.ts`) — converts raw audio samples into a detected note/frequency using the YIN algorithm, gated by RMS silence detection and debounced (`stabilizePitchReading.ts`) against per-frame jitter. **Monophonic only** — detects one fundamental frequency per buffer, the same as every standard pitch-detection algorithm (autocorrelation, YIN, MPM). Simultaneous multi-note input is not detected; this is a scope boundary, not a bug (see [Design-Decisions.md](Design-Decisions.md) entry 11).
 - Shared polling (`src/renderer/src/audio/useAnalyserFrame.ts`) — `requestAnimationFrame` scheduling used by both the level meter and the pitch detector.
+- **Keyboard renderer** (`src/renderer/src/keyboard/generateKeyboardLayout.ts` + `deriveKeyStates.ts`, `src/renderer/src/components/KeyboardDisplay.tsx` + `PianoKey.tsx`) — renders the 88-key (A0-C8) on-screen keyboard as SVG, highlights the currently detected note, and shows correct/incorrect feedback against a target note selected by clicking a key. The `keyboard/` directory holds pure layout-generation and note-comparison logic, parallel to how `audio/` holds pure DSP functions alongside hooks. Target-note state lives in `App.tsx` (a manual stand-in for `PracticeSession`, which will later drive it programmatically instead).
 
 **Not yet built** — noted here to guide future folder/module structure:
 
-- `KeyboardDisplay` — renders the on-screen piano keyboard and highlights notes.
 - `PracticeSession` — drives lesson/exercise sequencing and scoring.
 - `ProgressView` — displays practice history over time.
 
@@ -34,7 +34,7 @@ Mic → Web Audio stream → PitchDetector → detected note → UI feedback (Ke
                                               Progress persistence (via IPC → main)
 ```
 
-Implemented through "detected note" (mic capture → YIN pitch detection → the minimal `PitchReadout` text display). `KeyboardDisplay` and everything downstream of it is still anticipated, not built.
+Implemented through "UI feedback (KeyboardDisplay)" — mic capture → YIN pitch detection → both the minimal `PitchReadout` text display and the `KeyboardDisplay` keyboard, sharing one computed `PitchReading` (see [Design-Decisions.md](Design-Decisions.md) entry 13). `PracticeSession` and everything downstream of it is still anticipated, not built.
 
 ## Security Boundary
 

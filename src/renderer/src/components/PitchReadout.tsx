@@ -1,12 +1,10 @@
-import { usePitchDetector } from '../audio/usePitchDetector'
+import type { PitchReading } from '../audio/usePitchDetector'
 
 interface PitchReadoutProps {
-  analyser: AnalyserNode | null
+  reading: PitchReading | null
 }
 
-function PitchReadout({ analyser }: PitchReadoutProps): React.JSX.Element {
-  const reading = usePitchDetector(analyser)
-
+function PitchReadout({ reading }: PitchReadoutProps): React.JSX.Element {
   if (!reading) {
     return <p className="pitch-readout tip">—</p>
   }
