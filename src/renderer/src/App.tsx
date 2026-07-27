@@ -1,4 +1,5 @@
 import { useMicrophoneStream } from './audio/useMicrophoneStream'
+import { usePitchDetector } from './audio/usePitchDetector'
 import MicLevelMeter from './components/MicLevelMeter'
 import PitchReadout from './components/PitchReadout'
 import Versions from './components/Versions'
@@ -6,12 +7,13 @@ import Versions from './components/Versions'
 function App(): React.JSX.Element {
   const { state, start, stop } = useMicrophoneStream()
   const analyser = state.status === 'active' ? state.analyser : null
+  const reading = usePitchDetector(analyser)
 
   return (
     <>
       <h1>Piano Tutor</h1>
       <MicLevelMeter state={state} start={start} stop={stop} />
-      <PitchReadout analyser={analyser} />
+      <PitchReadout reading={reading} />
       <Versions></Versions>
     </>
   )
