@@ -13,6 +13,7 @@ function PianoKey({ layout, state, onClick }: PianoKeyProps): React.JSX.Element 
   return (
     <rect
       className={className}
+      data-testid={`piano-key-${layout.name}${layout.octave}`}
       x={layout.x}
       y={0}
       width={layout.width}
