@@ -4,6 +4,33 @@ Reverse-chronological log of work sessions. Append a new entry at the top after 
 
 ---
 
+## 2026-07-29
+
+**Work completed:**
+
+- Merged `feature/piano-renderer` (via GitHub PR) into `main` — Milestone 3 officially done.
+- Designed Milestone 4 (Practice Mode / Lesson Logic). Confirmed scope upfront via three questions: random-note exercises (not curated scales) for v1, auto-advance progression, and strictly in-memory scoring (no persistence — that's Milestone 5). Mid-design, redirected the plan away from an initially-proposed ~1s "correct pause" toward immediate advance-on-correct, relying on the keyboard's existing green highlight as the only feedback — this also simplified the implementation (no timer, no third reducer state).
+- Implemented on `feature/practice-mode` in 7 commits, using a new **functional core / imperative shell** pattern for this codebase: `practiceSessionReducer.ts` is a pure reducer (`idle`/`awaiting-note`, `start`/`stop`/`correct` actions), `usePracticeSession.ts` is the thin effectful hook wiring it to the live `PitchReading`. Also added `pickRandomTarget` (no-repeat, range-based) and the `PracticeSession` UI component.
+- Worked through a real scoring-design question with the user: why not track missed notes too? Answer, discovered concretely rather than asserted: `usePitchDetector` re-emits a new reading every animation frame even for a held note, so naive miss-counting would count one held wrong note as dozens of misses/second. Confirmed with the user that accuracy scoring isn't the goal anyway (just showing which note to play next), so `correctCount` alone is sufficient — documented as its own Design-Decisions entry since the reasoning is more interesting than "kept it simple."
+- Manual verification against a real piano: immediate advance-on-correct works with no stall, manual click-to-target is correctly disabled during an active session (and re-enabled after Stop), and "Last session: N correct" appears after stopping.
+- All 66 tests passing, lint/build clean throughout.
+- Updated `docs/Roadmap.md`, `docs/Architecture.md`, `docs/Design-Decisions.md` (entries 18-25).
+
+**New concepts learned:**
+
+- Functional core / imperative shell as a design pattern: keep the decision-making logic (a reducer) pure and fully unit-testable, push randomness/timers/side-effects out to a thin wrapper. Contrasted directly with this project's earlier hooks (`useMicrophoneStream`), which mix state and effects together.
+- Why a value that changes reference every render/frame (like `usePitchDetector`'s reading) needs care when used as a naive "count occurrences" signal — the framerate becomes an invisible multiplier on anything counted per-dispatch without de-duplication.
+- Filter-then-pick vs. reject-and-resample for "random choice excluding one value": filtering is bounded-cost and simpler to reason about for a small candidate set, versus an unbounded (if unlikely) retry loop.
+
+**Remaining work:**
+
+- Merge `feature/practice-mode` into `main` (pending final go-ahead).
+
+**Suggested next task:**
+Design Milestone 5 (Progress Tracking) — persisting practice history locally via preload/IPC and displaying progress over time.
+
+---
+
 ## 2026-07-27
 
 **Work completed:**
