@@ -1,7 +1,27 @@
-import { app, shell, BrowserWindow } from 'electron'
-import { join } from 'path'
+import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
+import { join, basename } from 'path'
+import { readFile } from 'fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+
+interface SelectedMidiFile {
+  fileName: string
+  data: Uint8Array
+}
+
+async function selectMidiFile(): Promise<SelectedMidiFile | null> {
+  const result = await dialog.showOpenDialog({
+    filters: [{ name: 'MIDI Files', extensions: ['mid', 'midi'] }],
+    properties: ['openFile']
+  })
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+
+  const filePath = result.filePaths[0]
+  const data = await readFile(filePath)
+  return { fileName: basename(filePath), data: new Uint8Array(data) }
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -48,6 +68,8 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  ipcMain.handle('dialog:selectMidiFile', selectMidiFile)
 
   createWindow()
 
