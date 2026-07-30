@@ -8,6 +8,7 @@ import PracticeSession from './components/PracticeSession'
 import Versions from './components/Versions'
 import { notesMatch, type TargetNote } from './keyboard/deriveKeyStates'
 import { usePracticeSession } from './practice/usePracticeSession'
+import { useSongImport } from './song/useSongImport'
 
 function App(): React.JSX.Element {
   const { state, start, stop } = useMicrophoneStream()
@@ -19,6 +20,7 @@ function App(): React.JSX.Element {
     start: startSession,
     stop: stopSession
   } = usePracticeSession(reading)
+  const { state: songImportState, importFile } = useSongImport()
 
   const targetNote = sessionState.status === 'awaiting-note' ? sessionState.target : manualTarget
 
@@ -43,6 +45,22 @@ function App(): React.JSX.Element {
         targetNote={targetNote}
         onKeyClick={handleKeyClick}
       />
+      <div className="song-import">
+        <button
+          type="button"
+          onClick={importFile}
+          disabled={songImportState.status === 'importing'}
+        >
+          Import MIDI File…
+        </button>
+        {songImportState.status === 'error' && <p className="tip">{songImportState.message}</p>}
+        {songImportState.status === 'success' && (
+          <p className="tip">
+            Imported &ldquo;{songImportState.song.title}&rdquo; —{' '}
+            {songImportState.song.events.length} events
+          </p>
+        )}
+      </div>
       <Versions></Versions>
     </>
   )
