@@ -1,4 +1,4 @@
-import { NOTE_NAMES } from '../audio/frequencyToNote'
+import { midiToNote } from '../song/noteMath'
 
 export interface KeyLayout {
   midi: number
@@ -41,8 +41,7 @@ export function generateKeyboardLayout(
   let whiteIndex = 0
 
   for (let midi = lowestMidi; midi <= highestMidi; midi++) {
-    const name = NOTE_NAMES[((midi % 12) + 12) % 12]
-    const octave = Math.floor(midi / 12) - 1
+    const { name, octave } = midiToNote(midi)
     const isBlack = name.includes('#')
 
     if (isBlack) {

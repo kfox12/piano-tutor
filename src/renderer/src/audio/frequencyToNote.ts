@@ -1,3 +1,5 @@
+import { midiToNote } from '../song/noteMath'
+
 export interface NoteInfo {
   name: string
   octave: number
@@ -5,7 +7,6 @@ export interface NoteInfo {
   centsOffset: number
 }
 
-export const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 const A4_MIDI = 69
 const A4_FREQUENCY = 440
 
@@ -17,8 +18,7 @@ export function frequencyToNote(frequency: number): NoteInfo {
   const midiFloat = A4_MIDI + 12 * Math.log2(frequency / A4_FREQUENCY)
   const midiRounded = Math.round(midiFloat)
 
-  const name = NOTE_NAMES[((midiRounded % 12) + 12) % 12]
-  const octave = Math.floor(midiRounded / 12) - 1
+  const { name, octave } = midiToNote(midiRounded)
   const noteFrequency = A4_FREQUENCY * Math.pow(2, (midiRounded - A4_MIDI) / 12)
   const centsOffset = (midiFloat - midiRounded) * 100
 
