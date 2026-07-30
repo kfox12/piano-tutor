@@ -13,6 +13,15 @@ const FAKE_SONG: Song = {
   events: [{ id: 'event-1', notes: [{ midi: 60, name: 'C', octave: 4 }] }]
 }
 
+const THREE_EVENT_SONG: Song = {
+  title: 'Three Notes',
+  events: [
+    { id: 'event-1', notes: [{ midi: 60, name: 'C', octave: 4 }] },
+    { id: 'event-2', notes: [{ midi: 62, name: 'D', octave: 4 }] },
+    { id: 'event-3', notes: [{ midi: 64, name: 'E', octave: 4 }] }
+  ]
+}
+
 function fakeSelectedFile(): { fileName: string; data: Uint8Array } {
   return { fileName: 'test.mid', data: new Uint8Array([1, 2, 3]) }
 }
@@ -40,7 +49,7 @@ describe('useSongImport', () => {
     expect(parseMidiFileMock).not.toHaveBeenCalled()
   })
 
-  it('parses the selected file and exposes the resulting song', async () => {
+  it('parses the selected file and exposes the resulting song at previewIndex 0', async () => {
     vi.mocked(window.api.selectMidiFile).mockResolvedValue(fakeSelectedFile())
     parseMidiFileMock.mockReturnValue(FAKE_SONG)
     const { result } = renderHook(() => useSongImport())
@@ -49,7 +58,7 @@ describe('useSongImport', () => {
       await result.current.importFile()
     })
 
-    expect(result.current.state).toEqual({ status: 'success', song: FAKE_SONG })
+    expect(result.current.state).toEqual({ status: 'success', song: FAKE_SONG, previewIndex: 0 })
     expect(parseMidiFileMock).toHaveBeenCalledWith(expect.any(ArrayBuffer), 'test.mid')
   })
 
@@ -82,6 +91,42 @@ describe('useSongImport', () => {
     const updated: Song = { ...FAKE_SONG, title: 'Renamed' }
     act(() => result.current.updateSong(updated))
 
-    expect(result.current.state).toEqual({ status: 'success', song: updated })
+    expect(result.current.state).toEqual({ status: 'success', song: updated, previewIndex: 0 })
+  })
+
+  it('stepPreview moves forward and backward, clamped to the event list bounds', async () => {
+    vi.mocked(window.api.selectMidiFile).mockResolvedValue(fakeSelectedFile())
+    parseMidiFileMock.mockReturnValue(THREE_EVENT_SONG)
+    const { result } = renderHook(() => useSongImport())
+
+    await act(async () => {
+      await result.current.importFile()
+    })
+
+    act(() => result.current.stepPreview(1))
+    expect(result.current.state).toMatchObject({ previewIndex: 1 })
+
+    act(() => result.current.stepPreview(1))
+    act(() => result.current.stepPreview(1)) // attempt to go past the last event
+    expect(result.current.state).toMatchObject({ previewIndex: 2 })
+
+    act(() => result.current.stepPreview(-10)) // attempt to go before the first event
+    expect(result.current.state).toMatchObject({ previewIndex: 0 })
+  })
+
+  it('clamps previewIndex if updateSong removes the event it pointed at', async () => {
+    vi.mocked(window.api.selectMidiFile).mockResolvedValue(fakeSelectedFile())
+    parseMidiFileMock.mockReturnValue(THREE_EVENT_SONG)
+    const { result } = renderHook(() => useSongImport())
+
+    await act(async () => {
+      await result.current.importFile()
+    })
+    act(() => result.current.stepPreview(2)) // now at the last event (index 2)
+
+    const shortened: Song = { ...THREE_EVENT_SONG, events: THREE_EVENT_SONG.events.slice(0, 1) }
+    act(() => result.current.updateSong(shortened))
+
+    expect(result.current.state).toEqual({ status: 'success', song: shortened, previewIndex: 0 })
   })
 })

@@ -23,14 +23,14 @@ export function notesMatch(
 
 function deriveKeyState(
   key: KeyIdentity,
-  targetNote: TargetNote | null,
+  targetNotes: TargetNote[],
   currentReading: PitchReading | null
 ): KeyVisualState {
-  const isTarget = targetNote !== null && notesMatch(key, targetNote)
+  const isTarget = targetNotes.some((target) => notesMatch(key, target))
   const isPlaying = currentReading !== null && notesMatch(key, currentReading.note)
 
   if (isPlaying && isTarget) return 'correct'
-  if (isPlaying && targetNote !== null) return 'incorrect'
+  if (isPlaying && targetNotes.length > 0) return 'incorrect'
   if (isPlaying) return 'playing'
   if (isTarget) return 'target'
   return 'idle'
@@ -40,11 +40,14 @@ function deriveKeyState(
  * "Correct" requires an exact name+octave match, not just the note name —
  * right-note-wrong-octave is a real, common mistake worth distinguishing
  * from actually correct, since the target is a specific clicked key.
+ *
+ * `targetNotes` accepts more than one note so a chord (from an imported
+ * song) can be highlighted all at once, not just a single practice target.
  */
 export function deriveKeyboardStates(
   keys: KeyIdentity[],
-  targetNote: TargetNote | null,
+  targetNotes: TargetNote[],
   currentReading: PitchReading | null
 ): Map<number, KeyVisualState> {
-  return new Map(keys.map((key) => [key.midi, deriveKeyState(key, targetNote, currentReading)]))
+  return new Map(keys.map((key) => [key.midi, deriveKeyState(key, targetNotes, currentReading)]))
 }

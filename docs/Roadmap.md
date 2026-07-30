@@ -14,10 +14,14 @@ This roadmap tracks the piano tutor app's milestones. Scope is **microphone-base
 
 **Milestone 4: Practice Mode / Lesson Logic** — automated random-note practice sessions, on `feature/practice-mode`. "Start Practice" begins an open-ended session (random target within a default one-octave range); playing the correct note immediately advances to a new target — no pause, matching the intent of just showing which note to play next rather than scoring accuracy. Manual click-to-select (Milestone 3) is disabled while a session is active. Session state (`correctCount`) is in-memory only; persistence is Milestone 5's job. Verified manually against a real piano: immediate advance, manual-click disabling, and the "Last session: N correct" summary after Stop all work as intended.
 
+**Milestone 5: Song Import (MIDI) & Correction Editor** — import a song from a MIDI file, on `feature/song-import`. A hand-rolled Standard MIDI File parser converts the file into the app's internal `Song` model (an ordered list of note/chord events, no rhythm — the practice engine only needs a pitch sequence, per direction from the user). Notes starting within 50ms of each other are grouped into chord events; a correction editor lets the user add, delete, or modify notes/chords afterward. Entirely in-memory for this milestone — disk persistence and an actual song-based practice session are deferred to follow-on slices. See [Design-Decisions.md](Design-Decisions.md) entries 26-33.
+
+_Note: the originally-planned "Progress Tracking" milestone (streaks/accuracy over time) was dropped — not what the user actually wants. The real goal is practicing specific songs, starting with this import pipeline._
+
 ## Current Milestone
 
-**Milestone 5: Progress Tracking**
+**Song-based practice & persistence (Milestone 6, not yet named/designed)**
 
-Persist practice history locally (via preload/IPC to the main process, not directly from the renderer) and display progress over time. Not yet started — design not yet discussed.
+Two follow-on pieces once song import is merged: (1) a practice-session mode that steps through an imported `Song`'s events in order, instead of `usePracticeSession`'s random targets; (2) saving imported/edited songs to disk (via preload/IPC to the main process) so they persist across app restarts. Not yet started — design not yet discussed.
 
 Milestones are strictly ordered since each depends on the previous one's output. Each is scoped to roughly a month of part-time work.

@@ -17,7 +17,7 @@ function reading(name: string, octave: number): PitchReading {
 
 describe('deriveKeyboardStates', () => {
   it('marks every key idle when there is no target and nothing is playing', () => {
-    const states = deriveKeyboardStates(KEYS, null, null)
+    const states = deriveKeyboardStates(KEYS, [], null)
     for (const key of KEYS) {
       expect(states.get(key.midi)).toBe('idle')
     }
@@ -25,14 +25,14 @@ describe('deriveKeyboardStates', () => {
 
   it('marks the target key as target when nothing is playing', () => {
     const target: TargetNote = { name: 'A', octave: 4 }
-    const states = deriveKeyboardStates(KEYS, target, null)
+    const states = deriveKeyboardStates(KEYS, [target], null)
 
     expect(states.get(69)).toBe('target') // A4
     expect(states.get(60)).toBe('idle') // C4
   })
 
   it('marks the playing key as playing when there is no target', () => {
-    const states = deriveKeyboardStates(KEYS, null, reading('C', 4))
+    const states = deriveKeyboardStates(KEYS, [], reading('C', 4))
 
     expect(states.get(60)).toBe('playing') // C4
     expect(states.get(69)).toBe('idle') // A4
@@ -40,14 +40,14 @@ describe('deriveKeyboardStates', () => {
 
   it('marks the key correct when the playing note exactly matches the target', () => {
     const target: TargetNote = { name: 'A', octave: 4 }
-    const states = deriveKeyboardStates(KEYS, target, reading('A', 4))
+    const states = deriveKeyboardStates(KEYS, [target], reading('A', 4))
 
     expect(states.get(69)).toBe('correct')
   })
 
   it('marks a right-name-wrong-octave note as incorrect, not correct', () => {
     const target: TargetNote = { name: 'A', octave: 4 }
-    const states = deriveKeyboardStates(KEYS, target, reading('A', 3))
+    const states = deriveKeyboardStates(KEYS, [target], reading('A', 3))
 
     expect(states.get(57)).toBe('incorrect') // A3 — wrong octave
     expect(states.get(69)).toBe('target') // A4 — still waiting to be hit
@@ -55,9 +55,21 @@ describe('deriveKeyboardStates', () => {
 
   it('marks a different playing note as incorrect while the target stays target', () => {
     const target: TargetNote = { name: 'A', octave: 4 }
-    const states = deriveKeyboardStates(KEYS, target, reading('C', 4))
+    const states = deriveKeyboardStates(KEYS, [target], reading('C', 4))
 
     expect(states.get(60)).toBe('incorrect') // C4 — what's actually being played
     expect(states.get(69)).toBe('target') // A4 — the target, not yet hit
+  })
+
+  it('marks every note in a multi-note target (chord) as target', () => {
+    const chord: TargetNote[] = [
+      { name: 'C', octave: 4 },
+      { name: 'A', octave: 4 }
+    ]
+    const states = deriveKeyboardStates(KEYS, chord, null)
+
+    expect(states.get(60)).toBe('target') // C4
+    expect(states.get(69)).toBe('target') // A4
+    expect(states.get(61)).toBe('idle') // C#4 — not part of the chord
   })
 })

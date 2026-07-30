@@ -6,12 +6,18 @@ export type SongImportState =
   | { status: 'idle' }
   | { status: 'importing' }
   | { status: 'error'; message: string }
-  | { status: 'success'; song: Song }
+  | { status: 'success'; song: Song; previewIndex: number }
 
 interface UseSongImportResult {
   state: SongImportState
   importFile: () => Promise<void>
   updateSong: (song: Song) => void
+  stepPreview: (delta: number) => void
+}
+
+function clampIndex(index: number, length: number): number {
+  if (length === 0) return 0
+  return Math.min(Math.max(index, 0), length - 1)
 }
 
 export function useSongImport(): UseSongImportResult {
@@ -29,7 +35,7 @@ export function useSongImport(): UseSongImportResult {
       // .slice() copies into a fresh, standalone ArrayBuffer (never shared/offset)
       const buffer = selected.data.slice().buffer as ArrayBuffer
       const song = parseMidiFile(buffer, selected.fileName)
-      setState({ status: 'success', song })
+      setState({ status: 'success', song, previewIndex: 0 })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to import MIDI file'
       setState({ status: 'error', message })
@@ -37,8 +43,27 @@ export function useSongImport(): UseSongImportResult {
   }, [])
 
   const updateSong = useCallback((song: Song) => {
-    setState((current) => (current.status === 'success' ? { status: 'success', song } : current))
+    setState((current) =>
+      current.status === 'success'
+        ? {
+            status: 'success',
+            song,
+            previewIndex: clampIndex(current.previewIndex, song.events.length)
+          }
+        : current
+    )
   }, [])
 
-  return { state, importFile, updateSong }
+  const stepPreview = useCallback((delta: number) => {
+    setState((current) =>
+      current.status === 'success'
+        ? {
+            ...current,
+            previewIndex: clampIndex(current.previewIndex + delta, current.song.events.length)
+          }
+        : current
+    )
+  }, [])
+
+  return { state, importFile, updateSong, stepPreview }
 }

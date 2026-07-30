@@ -325,3 +325,116 @@ A running log of significant engineering decisions, in the style of Architecture
 **Reasoning:** Auto-starting the mic from a different button would still be a real user gesture (doesn't violate entry 4's "no auto-request" rule), but it would couple two independently-designed state machines: what should `PracticeSession` show if `getUserMedia` then fails with `permission-denied`? Either it needs to understand `MicrophoneErrorKind`, or a session silently sits in `awaiting-note` forever with no signal the mic never came up. Keeping "Start Listening" and "Start Practice" as two fully decoupled gated actions (extending the same one-button-per-gated-capability pattern from entry 4) avoids that bridging problem entirely.
 
 **Trade-offs:** One extra required click (start the mic, then start practice) versus a single combined action — acceptable given the alternative's error-handling complexity.
+
+---
+
+## 26. MIDI file import over MusicXML or PDF/OMR for v1 song content
+
+**Decision:** Milestone 5 imports songs from Standard MIDI Files (`.mid`), not MusicXML or scanned sheet music (optical music recognition).
+
+**Reasoning:** The practice engine only needs a pitch sequence — the user handles rhythm themselves while playing, per their explicit direction. MIDI files exist in huge numbers for real songs and encode exactly what's needed (note-on events with pitch and timing) without the full notation semantics (voices, ties, dynamics, engraving) that MusicXML carries or that OMR would need to reconstruct from a scanned/PDF score. This is not a reversal of entry 2 ("MIDI deferred") — that decision was specifically about **MIDI hardware input** (a keyboard controller as an alternative to the microphone, i.e. real-time device I/O). Parsing a `.mid` **file** as song content has no device and no real-time I/O; it's a data-import format choice, unrelated to that decision.
+
+**Alternatives considered:**
+
+- _MusicXML_ — the standard sheet-music interchange format, but far more parsing complexity (voices, measures, ties) for fidelity the app discards anyway (rhythm).
+- _PDF/OMR (optical music recognition)_ — would let a user import a scanned score directly, but OMR is itself a substantial, error-prone ML problem — well beyond this milestone's scope.
+- _Manual entry only, no file import_ — considered as a fallback if MIDI parsing proved too risky; not needed since the hand-rolled parser worked.
+
+**Trade-offs:** MIDI files aren't available for every song (vs. a scanned score, which always exists for anything published), and the `Song` model's importer boundary (entry 29) keeps MusicXML/OMR realistic to add later if that gap matters.
+
+---
+
+## 27. Hand-rolled Standard MIDI File parser over a library
+
+**Decision:** `parseMidiFile.ts` reads MThd/MTrk chunks directly (byte-level parsing, variable-length quantities, running status) rather than adding a library like `@tonejs/midi`.
+
+**Reasoning:** Parallels entry 7 (hand-rolled YIN over `pitchy`). The project has stayed at effectively zero runtime dependencies for domain logic; the SMF format is a well-documented, comparably-scoped parsing problem (arguably simpler than YIN — no DSP, just structured byte parsing), and CLAUDE.md's stated priority is that the learning goal wins trade-offs.
+
+**Alternatives considered:**
+
+- _`@tonejs/midi` or similar_ — would have been faster to integrate, but skips the file-format learning opportunity and adds a dependency for something tractable to write directly.
+
+**Trade-offs:** More code to write and test than a library call; the parser also doesn't support every corner of the SMF spec (see entries 30-31) — acceptable since those corners aren't needed for this app's purpose.
+
+---
+
+## 28. Parsing stays in the renderer as a pure function; main process only opens the file and reads bytes
+
+**Decision:** `ipcMain.handle('dialog:selectMidiFile', ...)` in `src/main/index.ts` does exactly two things — open the native file picker, read the chosen file's raw bytes — and returns them to the renderer. `parseMidiFile(buffer, title): Song` runs entirely in the renderer, as a pure function with no Electron/Node dependency.
+
+**Reasoning:** Matches the documented Security Boundary (renderer never touches the filesystem; main proxies via preload) without also pulling actual domain logic into main. Every other piece of domain logic in this app (`audio/`, `keyboard/`, `practice/`) lives in the renderer as pure, directly-unit-testable functions — keeping the parser there too means it can be tested with plain Vitest (hand-built byte-array fixtures, no Electron mocking) exactly like `detectPitch.ts` or `parseMidiFile`'s sibling modules. This is also the **first real IPC channel** in the app — previously `src/preload/index.ts` exposed an empty `api` object.
+
+**Alternatives considered:**
+
+- _Parse the file in main, send the finished `Song` over IPC_ — keeps the renderer IPC surface simpler (one round trip returns finished data), but moves testable domain logic into the harder-to-unit-test main process, and breaks the established "domain logic lives in the renderer" convention.
+
+**Trade-offs:** None significant — the two-step "read bytes, then parse" split costs nothing extra in practice (parsing is fast) and keeps testability where the rest of the app already has it.
+
+---
+
+## 29. `Song` model designed as a shared target for future importers
+
+**Decision:** `Song`/`SongEvent`/`SongNote` ([song.ts](../src/renderer/src/song/song.ts)) describe an ordered list of note-or-chord events with no rhythm/timing data — deliberately the smallest model that captures "what to play, in what order, alone or together."
+
+**Reasoning:** The parser boundary is `(format-specific input) => Song`. A future MusicXML or OMR importer would be a new function producing this same shape, not a rewrite of the practice/editor layers that consume it. Keeping the model rhythm-free (rather than, say, preserving MIDI ticks/durations "just in case") avoids speculative complexity the app has no current use for — see CLAUDE.md's guidance against designing for hypothetical future requirements.
+
+**Trade-offs:** If a future feature ever wants rhythm (e.g. a metronome/timing-accuracy mode), the model would need to grow a new field — an explicit, acceptable cost of not over-building now.
+
+---
+
+## 30. Chord grouping via onset-time proximity only; duration is discarded
+
+**Decision:** Two or more notes become one `SongEvent` (a chord) when their onsets fall within `CHORD_ONSET_THRESHOLD_MS = 50` of the first note's onset in that group. Note-off/duration is parsed only insofar as needed to correctly walk the MIDI event stream, then discarded — it plays no role in the grouping decision itself.
+
+**Reasoning:** Onset proximity is the simplest rule that matches "notes that begin nearly simultaneously" (the actual instruction this milestone was scoped against), and it's a standard heuristic in music-information-retrieval chord detection. Anchoring each comparison to the *group's first note* (not the previous note) avoids drift, where a fast melodic run could otherwise get chained into one giant "chord" through a sequence of individually-small gaps.
+
+**Alternatives considered:**
+
+- _Overlapping-duration grouping (notes are a chord if their sounding durations overlap)_ — a plausible alternative reading of "duration matters for chord grouping," but meaningfully more complex (needs full note-off tracking and an overlap-interval algorithm) for a distinction that rarely matters in practice for a piano piece.
+
+**Trade-offs:** A held long note followed shortly after by a short new note starting within 50ms would group together even if a musician wouldn't call that a "chord" in the traditional sense — an acceptable simplification, correctable later in the song editor.
+
+---
+
+## 31. Multi-track flattening and single-tempo assumption (documented v1 limitations)
+
+**Decision:** All non-percussion tracks (channel 10 excluded) are merged into one absolute-time-ordered stream before chord grouping — there's no track-picker UI. Tempo is read once from the first Set Tempo meta event encountered (default 120 BPM if none) and applied to the whole file — no tempo-change map.
+
+**Reasoning:** Flattening tracks is a deliberate fit, not a workaround: a multi-track piano file (e.g. separate left/right-hand tracks) naturally collapses into chord events through the grouping step (entry 30) instead of needing a separate track-selection feature. A single constant tempo covers the common case (most simple exports don't automate tempo) while keeping the parser's scope contained.
+
+**Trade-offs:** A file with genuine tempo automation (rubato, accelerando) will have chord-grouping/ordering errors in the fast sections, and a file where multiple tracks represent genuinely different instruments (not just LH/RH of one piano part) would merge them indiscriminately. Both are real, known limitations — fixable later (track selection UI, a tempo map) without changing the `Song` model itself, since both are input-side parser concerns.
+
+---
+
+## 32. Song editor: append/delete/modify only, no reordering or mid-sequence insert in v1
+
+**Decision:** `SongEditor.tsx` supports appending a new event at the end, deleting an event or a note within a chord, and editing a note's pitch via name/octave selects. It does not support drag-reordering or inserting a new event in the middle of the sequence.
+
+**Reasoning:** This is genuinely new UI territory for the app (no prior list-editing precedent existed) — no existing pattern to extend or follow. Scoping to the minimum operations that satisfy "correct the extracted sequence" (the actual ask) avoids building reorder/insert affordances (drag-and-drop, or an "insert before/after" menu) that add real UI complexity without a demonstrated need yet.
+
+**Trade-offs:** Fixing a genuinely out-of-order import (e.g. a note that should be earlier in the sequence) currently requires delete-and-re-add-at-the-end rather than a direct move — an accepted rough edge for v1, revisit if it proves painful in practice.
+
+---
+
+## 33. Scope boundary: this milestone is import + parse + edit only
+
+**Decision:** Milestone 5 covers importing a MIDI file, parsing it into a `Song`, and correcting it in the editor — entirely in-memory. Saving songs to disk (cross-session persistence) and an actual "practice this song" session mode (stepping through a `Song`'s events instead of `usePracticeSession`'s random targets) are explicitly **not** part of this milestone.
+
+**Reasoning:** The originally-planned Milestone 5 ("Progress Tracking," streak/accuracy tracking) was dropped outright — the user doesn't want that framing. What's wanted instead is practicing specific songs, but bundling MIDI parsing + a new editor UI + disk persistence + a new practice-session mode into one branch would be too large a unit of work for one milestone (CLAUDE.md's ~1-month-part-time sizing guidance). This slice proves the import pipeline end-to-end; persistence and song-based practice are natural next slices once it exists.
+
+**Trade-offs:** An imported song currently doesn't survive an app restart, and there's no way yet to actually *practice* it (only view/edit it) — both are known, deliberate gaps, not omissions.
+
+---
+
+## 34. Keyboard target highlighting generalized from one note to a list; correction list hidden behind a toggle
+
+**Decision:** `deriveKeyStates.ts`/`KeyboardDisplay.tsx`'s `targetNote: TargetNote | null` became `targetNotes: TargetNote[]` (a key is "target" if it matches *any* entry). `App.tsx` gained a Prev/Next-navigable "current event" cursor for an imported song (`useSongImport`'s `previewIndex`/`stepPreview`), whose notes are highlighted on the keyboard the same way a practice-session or manually-clicked target is. `SongEditor`'s add/delete/modify list is now hidden behind an "Edit Notes" toggle, off by default, separate from the always-visible Prev/Next preview.
+
+**Reasoning:** First-pass manual verification surfaced two real usability problems: (1) the correction list appeared immediately and unexplained on import, with no indication of *why* editing was even offered, and (2) there was no way to see an imported note/chord on the actual keyboard the way practice mode already shows a target — reviewing/correcting the sequence meant reading note names as text only. Reusing the existing target-highlight mechanism (rather than inventing a separate "preview" visual style) keeps one visual language for "this is what should be played" across manual click, practice sessions, and song review. Generalizing to a list (not just adding a second single-note prop) is what makes chord events highlight correctly, and was a small, mechanical change since `PianoKey.tsx` never needed to change — it only ever consumed the already-resolved per-key `KeyVisualState`.
+
+**Alternatives considered:**
+
+- _Keep a single `targetNote` and only ever show the first note of a chord_ — simpler, but wrong: it would silently hide part of a chord, which is exactly the kind of import mistake the editor exists to catch.
+- _A separate "preview" highlight color/prop, independent of the practice-mode target styling_ — would avoid touching `deriveKeyStates`, but introduces a second visual vocabulary for what's conceptually the same thing ("the note(s) to play now").
+
+**Trade-offs:** Manual click-to-target is now disabled whenever a song is loaded (same reasoning as entry 22: a click can't reach what's actually controlling the display) — there's currently no way to "close" an imported song and return to manual click-to-target without importing a different file or restarting the app; acceptable for now, worth revisiting if that turns out to matter in practice.
