@@ -5,6 +5,7 @@ import KeyboardDisplay from './components/KeyboardDisplay'
 import MicLevelMeter from './components/MicLevelMeter'
 import PitchReadout from './components/PitchReadout'
 import PracticeSession from './components/PracticeSession'
+import SongEditor from './components/SongEditor'
 import Versions from './components/Versions'
 import { notesMatch, type TargetNote } from './keyboard/deriveKeyStates'
 import { usePracticeSession } from './practice/usePracticeSession'
@@ -20,7 +21,7 @@ function App(): React.JSX.Element {
     start: startSession,
     stop: stopSession
   } = usePracticeSession(reading)
-  const { state: songImportState, importFile } = useSongImport()
+  const { state: songImportState, importFile, updateSong } = useSongImport()
 
   const targetNote = sessionState.status === 'awaiting-note' ? sessionState.target : manualTarget
 
@@ -55,10 +56,7 @@ function App(): React.JSX.Element {
         </button>
         {songImportState.status === 'error' && <p className="tip">{songImportState.message}</p>}
         {songImportState.status === 'success' && (
-          <p className="tip">
-            Imported &ldquo;{songImportState.song.title}&rdquo; —{' '}
-            {songImportState.song.events.length} events
-          </p>
+          <SongEditor song={songImportState.song} onChange={updateSong} />
         )}
       </div>
       <Versions></Versions>
