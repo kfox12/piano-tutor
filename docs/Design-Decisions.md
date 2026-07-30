@@ -224,3 +224,104 @@ A running log of significant engineering decisions, in the style of Architecture
 ## 17. `#root` needs an explicit width for percentage-based child sizing (implementation note, not a decision)
 
 **Observation, not a decision:** Manual verification showed the keyboard rendering far smaller than intended, and initially "fixing" it with a fixed pixel width made it stop scaling with the window (which is what was actually wanted). Root cause: `#root` had no definite width — `body`'s `justify-content: center` centers `#root` without stretching it, so it sized to its content, leaving `<svg class="keyboard-display" width="100%">` with no meaningful value to resolve its percentage against. Fixed at the source (`#root { width: 100% }`) rather than working around it with fixed pixel dimensions, so `.keyboard-display`'s percentage width now resolves correctly and the keyboard genuinely scales as the window is resized, confirmed manually. Worth remembering for any future UI element that wants percentage-based responsive sizing — the containing block chain needs a definite width somewhere, or the percentage has nothing real to resolve against.
+
+---
+
+## 18. Functional core / imperative shell for practice-session logic
+
+**Decision:** `practiceSessionReducer.ts` is a pure reducer (no `Math.random()`, no timers, no side effects); `usePracticeSession.ts` is a thin hook wiring that reducer to the live `PitchReading`.
+
+**Reasoning:** A new pattern for this codebase (prior hooks like `useMicrophoneStream` mix state and effects directly via `useState`), adopted specifically because it makes the session state machine's correctness properties — what counts as a match, what a `correct` action does to `stats`/`target` — testable with plain function calls, no React rendering, no timers, no mocking. The randomness (`pickRandomTarget`) and the effectful "watch the reading, dispatch on match" logic stay in the hook, where they belong.
+
+**Alternatives considered:**
+
+- _One `useState`/`useEffect`-based hook, no separate reducer_ — would match the existing `useMicrophoneStream` style, but conflates "what should happen" (pure) with "when should it happen" (effectful), making the transition logic harder to test in isolation.
+
+**Trade-offs:** One more file/indirection layer than the minimal version; justified by how central and non-trivial the state machine is to this milestone specifically.
+
+---
+
+## 19. Immediate advance on correct, no pause
+
+**Decision:** The moment a correct note is detected, the session advances to a new target in the same tick — no artificial delay, no intermediate "correct-pause" state.
+
+**Reasoning:** An earlier draft of this design included a ~1s pause with a "Correct!" cue before advancing. The user explicitly redirected: don't stall the next note. The keyboard's existing green "correct" highlight (from Milestone 3's `deriveKeyboardStates`, unchanged by this milestone) is sufficient correctness feedback on its own — it's naturally visible for as long as the note keeps sounding, without needing code to hold it artificially. This also simplified the implementation meaningfully: no `setTimeout`, no third reducer state, no "ignore readings during the pause" gating logic to test.
+
+**Alternatives considered:**
+
+- _~1s pause before advancing_ — the original design; rejected per explicit user feedback in favor of continuous flow.
+
+**Trade-offs:** None significant — this is both simpler to implement and matches what was actually wanted.
+
+---
+
+## 20. In-memory-only session state
+
+**Decision:** `SessionStats`/`PracticeSessionState` live entirely in React state (via `useReducer`), reset on every app restart. No IPC call, no file write, anywhere in this milestone.
+
+**Reasoning:** Milestone 5 ("Progress Tracking") exists specifically to add persistence via preload/IPC. Building any of that here — even a minimal "save the last session" — would pull forward work that milestone owns and blur the boundary between them.
+
+**Trade-offs:** "Last session: N correct" only survives until the app is closed, not across restarts — acceptable, since cross-session history is explicitly Milestone 5's job, not this one's.
+
+---
+
+## 21. Random-target generator: default range, no-repeat via filtering
+
+**Decision:** `pickRandomTarget` defaults to a one-octave range (C4-C5) and excludes the immediately-previous target from the candidate pool before picking (filter-then-pick, not reject-and-resample), falling back to the unfiltered pool for a single-note range.
+
+**Reasoning:** One octave around middle C gives real variety without spanning registers a beginner hasn't learned to read yet. Filtering is O(n) with no retry-loop risk (n is small — 13 keys at most for the default range) and is trivially testable with an injected deterministic `rng`. No-repeat matters more given Milestone 19's immediate-advance decision: it guarantees the new target can never be the same note the player is still physically holding, so a sustained note can't "match" a second target by coincidence.
+
+**Alternatives considered:**
+
+- _Reject-and-resample (pick randomly, retry if it matches the previous target)_ — simpler to write, but has an unbounded (if vanishingly unlikely) retry count, versus filtering's guaranteed-bounded cost.
+
+**Trade-offs:** None significant. Range is a parameter, not hardcoded, so a future settings UI can change difficulty without touching this function.
+
+---
+
+## 22. Manual click-to-target disabled during an active session
+
+**Decision:** `App.tsx`'s `handleKeyClick` is a no-op while `sessionState.status === 'awaiting-note'`.
+
+**Reasoning:** A click can't reach `practiceSessionReducer`'s internal `target` — the reducer is the only thing that knows what the session is actually listening for. Leaving clicks live during a session wouldn't override anything real; it would just visually highlight a different key than the one being matched against, which is confusing, not useful. `KeyboardDisplay` needed no changes to support this — `targetNote` is derived in `App.tsx` before ever reaching it.
+
+**Trade-offs:** None significant.
+
+---
+
+## 23. Open-ended (Stop-driven) session length, not a fixed round count
+
+**Decision:** A practice session has no built-in end condition — it runs until the user clicks "Stop Practice."
+
+**Reasoning:** Roadmap.md's own milestone text says "session start/stop flow," which is a user-controlled boundary, not an algorithmic one. A fixed round count (e.g. 10) would need its own justification for the specific number, and would likely need to be configurable eventually anyway — scope this milestone doesn't need. The "natural summary moment" a fixed count would provide is achieved a different way instead: `idle` carries `lastSessionStats`, populated on `stop`, giving a "Last session: N correct" summary tied to the user's own action rather than an arbitrary count.
+
+**Alternatives considered:**
+
+- _Fixed round count (e.g. 10 notes per session)_ — provides an automatic end/summary moment, but adds unjustified scope (why 10?) this milestone doesn't need.
+
+**Trade-offs:** None significant.
+
+---
+
+## 24. No miss-tracking in v1 scoring
+
+**Decision:** `SessionStats` tracks only `correctCount`. No `missCount`, no accuracy percentage, no first-try tracking.
+
+**Reasoning:** Two reasons, one of them a real correctness pitfall rather than just a style preference. First, confirmed directly with the user: the intent of this milestone is to help the player know which note to play next, not to produce an accuracy score. Second, and more technically interesting: `usePitchDetector` emits a **new `PitchReading` object every animation frame** (~60/sec) for as long as a note is held — including a wrong note held steady. Naively incrementing a miss counter on every non-matching dispatch would count one held wrong note as dozens of "misses" per second, not one mistake. Fixing that properly needs edge-detection (tracking the previously-seen note to only count *transitions* into a new wrong note) — real added complexity for a stat this milestone doesn't need. The correct path doesn't have this problem for free: a round can only be won once (the reducer's `correct` case only fires from `awaiting-note`, and winning immediately changes `target`), so `correctCount` increments exactly once per round with zero extra bookkeeping. Wrong notes remain visible in real time via the keyboard's existing red highlighting; the session just doesn't separately tally them.
+
+**Alternatives considered:**
+
+- _Track `missCount` via naive non-matching-dispatch counting_ — rejected outright; produces meaningless numbers per the framerate-counter problem above.
+- _Track `missCount` via proper edge-detection_ — technically sound, but real added complexity not justified by this milestone's actual goal (confirmed with the user).
+
+**Trade-offs:** No accuracy/history metric beyond a simple correct count — acceptable, since that was never the goal for this milestone.
+
+---
+
+## 25. "Start Practice" gated on mic-already-active
+
+**Decision:** `PracticeSession`'s "Start Practice" button is disabled until `useMicrophoneStream`'s state is `active`. Clicking it never triggers the mic's own `start()`.
+
+**Reasoning:** Auto-starting the mic from a different button would still be a real user gesture (doesn't violate entry 4's "no auto-request" rule), but it would couple two independently-designed state machines: what should `PracticeSession` show if `getUserMedia` then fails with `permission-denied`? Either it needs to understand `MicrophoneErrorKind`, or a session silently sits in `awaiting-note` forever with no signal the mic never came up. Keeping "Start Listening" and "Start Practice" as two fully decoupled gated actions (extending the same one-button-per-gated-capability pattern from entry 4) avoids that bridging problem entirely.
+
+**Trade-offs:** One extra required click (start the mic, then start practice) versus a single combined action — acceptable given the alternative's error-handling complexity.

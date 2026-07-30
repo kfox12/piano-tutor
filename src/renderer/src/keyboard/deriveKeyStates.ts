@@ -13,8 +13,12 @@ interface KeyIdentity {
   octave: number
 }
 
-function matchesNote(key: KeyIdentity, note: { name: string; octave: number }): boolean {
-  return key.name === note.name && key.octave === note.octave
+/** Exact name+octave match — the single source of truth for "same note." */
+export function notesMatch(
+  a: { name: string; octave: number },
+  b: { name: string; octave: number }
+): boolean {
+  return a.name === b.name && a.octave === b.octave
 }
 
 function deriveKeyState(
@@ -22,8 +26,8 @@ function deriveKeyState(
   targetNote: TargetNote | null,
   currentReading: PitchReading | null
 ): KeyVisualState {
-  const isTarget = targetNote !== null && matchesNote(key, targetNote)
-  const isPlaying = currentReading !== null && matchesNote(key, currentReading.note)
+  const isTarget = targetNote !== null && notesMatch(key, targetNote)
+  const isPlaying = currentReading !== null && notesMatch(key, currentReading.note)
 
   if (isPlaying && isTarget) return 'correct'
   if (isPlaying && targetNote !== null) return 'incorrect'
