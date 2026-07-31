@@ -11,7 +11,7 @@ afterEach(cleanup)
 describe('KeyboardDisplay', () => {
   it("calls onKeyClick with the clicked key's note when a white key is clicked", () => {
     const onKeyClick = vi.fn()
-    render(<KeyboardDisplay currentReading={null} targetNote={null} onKeyClick={onKeyClick} />)
+    render(<KeyboardDisplay currentReading={null} targetNotes={[]} onKeyClick={onKeyClick} />)
 
     fireEvent.click(screen.getByTestId('piano-key-A4'))
 
@@ -20,7 +20,7 @@ describe('KeyboardDisplay', () => {
 
   it("calls onKeyClick with the clicked key's note when a black key is clicked", () => {
     const onKeyClick = vi.fn()
-    render(<KeyboardDisplay currentReading={null} targetNote={null} onKeyClick={onKeyClick} />)
+    render(<KeyboardDisplay currentReading={null} targetNotes={[]} onKeyClick={onKeyClick} />)
 
     fireEvent.click(screen.getByTestId('piano-key-C#4'))
 

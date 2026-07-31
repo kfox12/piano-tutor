@@ -11,16 +11,16 @@ const BLACK_KEYS = LAYOUT.keys.filter((key) => key.isBlack)
 
 interface KeyboardDisplayProps {
   currentReading: PitchReading | null
-  targetNote: TargetNote | null
+  targetNotes: TargetNote[]
   onKeyClick: (note: { name: string; octave: number }) => void
 }
 
 function KeyboardDisplay({
   currentReading,
-  targetNote,
+  targetNotes,
   onKeyClick
 }: KeyboardDisplayProps): React.JSX.Element {
-  const states = deriveKeyboardStates(LAYOUT.keys, targetNote, currentReading)
+  const states = deriveKeyboardStates(LAYOUT.keys, targetNotes, currentReading)
 
   return (
     <svg className="keyboard-display" viewBox={`0 0 ${LAYOUT.totalWidth} ${LAYOUT.whiteKeyHeight}`}>
