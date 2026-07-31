@@ -4,6 +4,42 @@ Reverse-chronological log of work sessions. Append a new entry at the top after 
 
 ---
 
+## 2026-07-30
+
+**Work completed:**
+
+- Merged `feature/practice-mode` (via GitHub PR) into `main` — Milestone 4 officially done.
+- Redirected the roadmap: the originally-planned Milestone 5 ("Progress Tracking" — streaks/accuracy) was dropped outright, since that's not what's actually wanted. The real goal, surfaced through a couple of clarifying rounds, is practicing specific songs — starting with importing one.
+- Designed and implemented Milestone 5 (Song Import) via full plan-mode: explored the codebase, confirmed MIDI file import (not MusicXML or PDF/OMR) as the v1 format, and scoped the milestone to import + parse + edit only (no disk persistence, no song-based practice session yet — those are explicit follow-on slices).
+- Implemented on `feature/song-import` in 7 commits:
+  1. Extracted a shared `midiToNote`/`noteToMidi` helper (`song/noteMath.ts`), removing duplicated MIDI-number math that had been inlined in both `frequencyToNote.ts` and `generateKeyboardLayout.ts`.
+  2. Added the `Song`/`SongEvent`/`SongNote` model and a **hand-rolled Standard MIDI File parser** (`parseMidiFile.ts`) — chunk/event/running-status parsing, chord grouping by onset-time proximity (50ms threshold), multi-track flattening (percussion channel excluded), single-tempo assumption. Tested against hand-built byte-array fixtures (no binary `.mid` files in the repo).
+  3. Added the app's first real IPC channel (`dialog:selectMidiFile`) — main opens the native file picker and reads raw bytes; parsing itself stays in the renderer as a pure function, keeping it unit-testable and consistent with where the rest of the app's domain logic lives.
+  4. Added `useSongImport` + a basic import button in `App.tsx`, proving the pipeline end-to-end before building the editor.
+  5. Added `SongEditor` (add/delete/modify notes and chords).
+  6. Generalized `KeyboardDisplay`'s target highlighting from a single note to a list (`targetNotes: TargetNote[]`) so a chord can highlight all at once; added a Prev/Next-navigable preview cursor (`useSongImport`'s `previewIndex`/`stepPreview`) so the currently-previewed note/chord highlights on the keyboard the same way a practice target does; hid `SongEditor`'s correction list behind an "Edit Notes" toggle, off by default.
+  7. Fixed a CSS overflow bug found during manual testing — the note list, unbounded, pushed past the window's bottom edge (global `overflow: hidden`); bounded it to a fixed height with its own scrollbar.
+- Manual verification against the running app surfaced two real usability issues beyond what the design anticipated: the correction editor was confusing with no explanation and no way to hide it, and there was no way to see an imported note/chord on the actual keyboard. Both were fixed in the same session (items 6-7 above) rather than deferred, since they came directly from hands-on testing of this milestone's own feature.
+- 100/100 tests passing, lint/build clean throughout.
+- Updated `docs/Roadmap.md`, `docs/Architecture.md`, `docs/Design-Decisions.md` (entries 26-34).
+
+**New concepts learned:**
+
+- The Standard MIDI File format: `MThd`/`MTrk` chunks, variable-length quantities for delta-times, running status (a status byte can be omitted and reused from the previous event), and how General MIDI reserves channel 10 for percussion.
+- Chord detection via onset-time proximity is a real, standard technique (not something invented for this project) — anchoring each comparison to a group's *first* note (not the previous note) avoids drift on fast passages.
+- Structural typing let `SongNote` (which carries an extra `midi` field) be used anywhere a `TargetNote` (`{ name, octave }`) is expected, with no adapter code — TypeScript only enforces "at least these properties," not "exactly these properties," for non-literal assignments.
+- Electron's IPC boundary in practice: a channel's job can be as small as "open a dialog, read bytes" — the temptation to also parse the file in main (since it's already reading it) would have broken the project's "domain logic lives in the renderer, testable without Electron" convention for no real benefit.
+
+**Remaining work:**
+
+- Merge `feature/song-import` into `main` (pending final go-ahead).
+- Design and build song-based practice (stepping through an imported song's events during an actual practice session, not just previewing them) and disk persistence for imported songs — both explicitly deferred out of this milestone.
+
+**Suggested next task:**
+Design the next milestone: song-based practice sessions and/or persisting imported songs to disk. Worth discussing with the user which of the two matters more to tackle first, since they're independent pieces (a song-practice mode doesn't strictly need persistence, and persistence doesn't strictly need a practice mode).
+
+---
+
 ## 2026-07-29
 
 **Work completed:**
