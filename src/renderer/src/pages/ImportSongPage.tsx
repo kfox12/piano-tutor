@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useMicrophoneStream } from '../audio/useMicrophoneStream'
 import { usePitchDetector } from '../audio/usePitchDetector'
 import KeyboardDisplay from '../components/KeyboardDisplay'
 import MicLevelMeter from '../components/MicLevelMeter'
 import PitchReadout from '../components/PitchReadout'
 import SongEditor from '../components/SongEditor'
+import { useSongAutoAdvance } from '../song/useSongAutoAdvance'
 import { useSongImport } from '../song/useSongImport'
 
 function ImportSongPage(): React.JSX.Element {
@@ -30,6 +31,15 @@ function ImportSongPage(): React.JSX.Element {
     songImportState.status === 'success'
       ? (songImportState.song.events[songImportState.previewIndex] ?? null)
       : null
+
+  const advanceToNextEvent = useCallback(() => {
+    stepPreview(1)
+  }, [stepPreview])
+
+  // Playing the currently-previewed note (or, for a chord, any one of its
+  // notes) advances to the next one automatically, same immediate-advance
+  // feel as Practice Mode — Prev/Next stay available for manual correction.
+  useSongAutoAdvance(reading, currentSongEvent, advanceToNextEvent)
 
   return (
     <div className="import-page">
