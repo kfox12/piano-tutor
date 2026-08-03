@@ -1,34 +1,63 @@
-:root {
-  --ev-c-white: #ffffff;
-  --ev-c-white-soft: #f8f8f8;
-  --ev-c-white-mute: #f2f2f2;
+/* Design tokens. Resolved once in JS (ThemeContext) which stamps
+   data-theme="light" | "dark" onto <html> — no prefers-color-scheme
+   media query here, so there's a single source of truth for theme state
+   instead of two definitions that can drift apart. */
+:root[data-theme='light'] {
+  --color-bg: #f5f5f7;
+  --color-bg-elevated: #ffffff;
+  --color-bg-elevated-hover: #fbfbfd;
+  --color-text-1: rgba(0, 0, 0, 0.88);
+  --color-text-2: rgba(0, 0, 0, 0.55);
+  --color-text-3: rgba(0, 0, 0, 0.35);
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-accent: #007aff;
+  --color-accent-text: #ffffff;
+  --color-accent-soft: rgba(0, 122, 255, 0.1);
+  --color-success: #22a04b;
+  --color-error: #d9483f;
+  --color-playing: #c98a12;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 1px rgba(0, 0, 0, 0.03);
+  --shadow-card-hover: 0 16px 28px rgba(0, 0, 0, 0.1), 0 4px 10px rgba(0, 0, 0, 0.06);
+}
 
-  --ev-c-black: #1b1b1f;
-  --ev-c-black-soft: #222222;
-  --ev-c-black-mute: #282828;
-
-  --ev-c-gray-1: #515c67;
-  --ev-c-gray-2: #414853;
-  --ev-c-gray-3: #32363f;
-
-  --ev-c-text-1: rgba(255, 255, 245, 0.86);
-  --ev-c-text-2: rgba(235, 235, 245, 0.6);
-  --ev-c-text-3: rgba(235, 235, 245, 0.38);
-
-  --ev-button-alt-border: transparent;
-  --ev-button-alt-text: var(--ev-c-text-1);
-  --ev-button-alt-bg: var(--ev-c-gray-3);
-  --ev-button-alt-hover-border: transparent;
-  --ev-button-alt-hover-text: var(--ev-c-text-1);
-  --ev-button-alt-hover-bg: var(--ev-c-gray-2);
+:root[data-theme='dark'] {
+  --color-bg: #1b1b1f;
+  --color-bg-elevated: #232327;
+  --color-bg-elevated-hover: #2a2a2f;
+  --color-text-1: rgba(255, 255, 245, 0.86);
+  --color-text-2: rgba(235, 235, 245, 0.6);
+  --color-text-3: rgba(235, 235, 245, 0.38);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-accent: #0a84ff;
+  --color-accent-text: #ffffff;
+  --color-accent-soft: rgba(10, 132, 255, 0.16);
+  --color-success: #3fb950;
+  --color-error: #e5534b;
+  --color-playing: #f0c419;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 20px 32px rgba(0, 0, 0, 0.45), 0 6px 12px rgba(0, 0, 0, 0.3);
 }
 
 :root {
-  --color-background: var(--ev-c-black);
-  --color-background-soft: var(--ev-c-black-soft);
-  --color-background-mute: var(--ev-c-black-mute);
+  /* Piano keys look like a piano regardless of theme — unlike the rest of
+     the palette, these don't flip between the light/dark token blocks. */
+  --color-key-white: #ffffff;
+  --color-key-black: #26262b;
 
-  --color-text: var(--ev-c-text-1);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --transition-fast: 150ms ease;
+  --transition-medium: 220ms ease;
 }
 
 *,
@@ -45,8 +74,8 @@ ul {
 
 body {
   min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
+  color: var(--color-text-1);
+  background: var(--color-bg);
   line-height: 1.6;
   font-family:
     Inter,
@@ -64,4 +93,7 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition:
+    background-color var(--transition-medium),
+    color var(--transition-medium);
 }
