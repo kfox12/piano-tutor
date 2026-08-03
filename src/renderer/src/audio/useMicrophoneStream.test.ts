@@ -131,6 +131,23 @@ describe('useMicrophoneStream', () => {
     expect(result.current.state).toEqual({ status: 'idle' })
   })
 
+  it('ignores a redundant start() call while already active, so callers can call it unconditionally', async () => {
+    const getUserMedia = vi.fn().mockResolvedValue(createFakeStream())
+    stubGetUserMedia(getUserMedia)
+
+    const { result } = renderHook(() => useMicrophoneStream())
+    act(() => {
+      result.current.start()
+    })
+    await waitFor(() => expect(result.current.state.status).toBe('active'))
+
+    act(() => {
+      result.current.start()
+    })
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+  })
+
   it('tears down the stream on unmount even without calling stop()', async () => {
     const fakeStream = createFakeStream()
     stubGetUserMedia(vi.fn().mockResolvedValue(fakeStream))

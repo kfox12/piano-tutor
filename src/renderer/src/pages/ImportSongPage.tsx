@@ -1,11 +1,30 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useMicrophoneStream } from '../audio/useMicrophoneStream'
+import { usePitchDetector } from '../audio/usePitchDetector'
 import KeyboardDisplay from '../components/KeyboardDisplay'
+import MicLevelMeter from '../components/MicLevelMeter'
+import PitchReadout from '../components/PitchReadout'
 import SongEditor from '../components/SongEditor'
 import { useSongImport } from '../song/useSongImport'
 
 function ImportSongPage(): React.JSX.Element {
   const { state: songImportState, importFile, updateSong, stepPreview } = useSongImport()
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const { state: micState, start: startMic, stop: stopMic } = useMicrophoneStream()
+  const analyser = micState.status === 'active' ? micState.analyser : null
+  const reading = usePitchDetector(analyser)
+
+  // As soon as a song finishes importing, start listening so the user can
+  // begin playing it right away without an extra click. `startMic` is
+  // idempotent, and this effect only re-fires when `status` itself changes
+  // (not on every stepPreview/updateSong within an already-successful
+  // import), so it won't fight a user who manually stops the mic while
+  // reviewing — it only kicks in again for a genuinely new import.
+  useEffect(() => {
+    if (songImportState.status === 'success') {
+      startMic()
+    }
+  }, [songImportState.status, startMic])
 
   const currentSongEvent =
     songImportState.status === 'success'
@@ -22,8 +41,10 @@ function ImportSongPage(): React.JSX.Element {
       {songImportState.status === 'success' && (
         <div className="song-review">
           <p className="tip">{songImportState.song.title}</p>
+          <MicLevelMeter state={micState} start={startMic} stop={stopMic} />
+          <PitchReadout reading={reading} />
           <KeyboardDisplay
-            currentReading={null}
+            currentReading={reading}
             targetNotes={currentSongEvent ? currentSongEvent.notes : []}
             // Manual click-to-target is disabled during song preview, same
             // as during a practice session — a click can't reach what's

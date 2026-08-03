@@ -37,6 +37,10 @@ function toErrorMessage(error: unknown): string {
 
 export function useMicrophoneStream(): UseMicrophoneStreamResult {
   const [state, setState] = useState<MicrophoneState>({ status: 'idle' })
+  const stateRef = useRef(state)
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
   const streamRef = useRef<MediaStream | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
 
@@ -48,6 +52,10 @@ export function useMicrophoneStream(): UseMicrophoneStreamResult {
   }, [])
 
   const start = useCallback(() => {
+    // Idempotent so callers (e.g. an auto-start effect) can call this
+    // without first checking current status themselves.
+    if (stateRef.current.status === 'active' || stateRef.current.status === 'requesting') return
+
     setState({ status: 'requesting' })
     navigator.mediaDevices
       .getUserMedia({ audio: true })
