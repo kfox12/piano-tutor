@@ -66,7 +66,12 @@ describe('useSongImport', () => {
       await result.current.importFile()
     })
 
-    expect(result.current.state).toEqual({ status: 'success', song: FAKE_SONG, previewIndex: 0 })
+    expect(result.current.state).toEqual({
+      status: 'success',
+      song: FAKE_SONG,
+      previewIndex: 0,
+      activeSegmentId: null
+    })
     expect(parseMidiFileMock).toHaveBeenCalledWith(expect.any(ArrayBuffer), 'test.mid')
   })
 
@@ -99,7 +104,12 @@ describe('useSongImport', () => {
     const updated: Song = { ...FAKE_SONG, title: 'Renamed' }
     act(() => result.current.updateSong(updated))
 
-    expect(result.current.state).toEqual({ status: 'success', song: updated, previewIndex: 0 })
+    expect(result.current.state).toEqual({
+      status: 'success',
+      song: updated,
+      previewIndex: 0,
+      activeSegmentId: null
+    })
   })
 
   it('stepPreview moves forward and backward, clamped to the event list bounds', async () => {
@@ -130,7 +140,8 @@ describe('useSongImport', () => {
     expect(result.current.state).toEqual({
       status: 'success',
       song: THREE_EVENT_SONG,
-      previewIndex: 0
+      previewIndex: 0,
+      activeSegmentId: null
     })
     expect(parseMidiFileMock).not.toHaveBeenCalled()
   })
@@ -148,6 +159,80 @@ describe('useSongImport', () => {
     const shortened: Song = { ...THREE_EVENT_SONG, events: THREE_EVENT_SONG.events.slice(0, 1) }
     act(() => result.current.updateSong(shortened))
 
-    expect(result.current.state).toEqual({ status: 'success', song: shortened, previewIndex: 0 })
+    expect(result.current.state).toEqual({
+      status: 'success',
+      song: shortened,
+      previewIndex: 0,
+      activeSegmentId: null
+    })
+  })
+
+  it('stepPreview wraps within an active segment instead of clamping at its end', async () => {
+    vi.mocked(window.api.selectMidiFile).mockResolvedValue(fakeSelectedFile())
+    const songWithSegment: Song = {
+      ...THREE_EVENT_SONG,
+      segments: [{ id: 'seg-1', name: 'First Two', startEventId: 'event-1', endEventId: 'event-2' }]
+    }
+    parseMidiFileMock.mockReturnValue(songWithSegment)
+    const { result } = renderHook(() => useSongImport())
+
+    await act(async () => {
+      await result.current.importFile()
+    })
+    act(() => result.current.setActiveSegment('seg-1'))
+    expect(result.current.state).toMatchObject({ previewIndex: 0, activeSegmentId: 'seg-1' })
+
+    act(() => result.current.stepPreview(1))
+    expect(result.current.state).toMatchObject({ previewIndex: 1 })
+
+    // Reaching the segment's end wraps back to its start, not the whole song.
+    act(() => result.current.stepPreview(1))
+    expect(result.current.state).toMatchObject({ previewIndex: 0 })
+
+    // Stepping backward from the start wraps to the segment's end.
+    act(() => result.current.stepPreview(-1))
+    expect(result.current.state).toMatchObject({ previewIndex: 1 })
+  })
+
+  it('setActiveSegment(null) returns to full-song clamped navigation', async () => {
+    vi.mocked(window.api.selectMidiFile).mockResolvedValue(fakeSelectedFile())
+    const songWithSegment: Song = {
+      ...THREE_EVENT_SONG,
+      segments: [{ id: 'seg-1', name: 'First Two', startEventId: 'event-1', endEventId: 'event-2' }]
+    }
+    parseMidiFileMock.mockReturnValue(songWithSegment)
+    const { result } = renderHook(() => useSongImport())
+
+    await act(async () => {
+      await result.current.importFile()
+    })
+    act(() => result.current.setActiveSegment('seg-1'))
+    act(() => result.current.setActiveSegment(null))
+
+    expect(result.current.state).toMatchObject({ previewIndex: 0, activeSegmentId: null })
+    act(() => result.current.stepPreview(1))
+    act(() => result.current.stepPreview(1))
+    act(() => result.current.stepPreview(1)) // attempt to go past the last event
+    expect(result.current.state).toMatchObject({ previewIndex: 2 })
+  })
+
+  it('updateSong clears activeSegmentId if the referenced segment was deleted', async () => {
+    vi.mocked(window.api.selectMidiFile).mockResolvedValue(fakeSelectedFile())
+    const songWithSegment: Song = {
+      ...THREE_EVENT_SONG,
+      segments: [{ id: 'seg-1', name: 'First Two', startEventId: 'event-1', endEventId: 'event-2' }]
+    }
+    parseMidiFileMock.mockReturnValue(songWithSegment)
+    const { result } = renderHook(() => useSongImport())
+
+    await act(async () => {
+      await result.current.importFile()
+    })
+    act(() => result.current.setActiveSegment('seg-1'))
+
+    const withoutSegment: Song = { ...songWithSegment, segments: [] }
+    act(() => result.current.updateSong(withoutSegment))
+
+    expect(result.current.state).toMatchObject({ activeSegmentId: null })
   })
 })

@@ -496,6 +496,78 @@ select {
   border: 1px solid var(--color-border);
 }
 
+/* ---------- Practice segments ---------- */
+
+.segment-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 92%;
+  max-width: 1400px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.segment-tools__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.segment-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 420px;
+}
+
+.segment-list__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.segment-list__practice {
+  flex: 1 1 auto;
+}
+
+.segment-list__delete {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background-color: transparent;
+  color: var(--color-text-2);
+  box-shadow: none;
+}
+
+.segment-list__delete:hover {
+  opacity: 1;
+  background-color: var(--color-bg-elevated-hover);
+  color: var(--color-error);
+}
+
+.segment-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.segment-draft input[type='text'] {
+  font: inherit;
+  color: var(--color-text-1);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  height: 38px;
+}
+
 /* ---------- Versions footer ---------- */
 
 .versions {
