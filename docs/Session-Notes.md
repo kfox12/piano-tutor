@@ -4,6 +4,38 @@ Reverse-chronological log of work sessions. Append a new entry at the top after 
 
 ---
 
+## 2026-08-04
+
+**Work completed:**
+
+- Confirmed `feature/ui-redesign` was merged (PR #5); synced local `main`, deleted the merged local branch, and reviewed the Roadmap to answer "what's next": Milestone 6 (song persistence + song-based practice), not yet designed. Asked which half to tackle first — user picked persistence.
+- Designed song persistence before writing code: one JSON file per song under `app.getPath('userData')/songs/`, new `song:save`/`song:list`/`song:load`/`song:delete` IPC channels following the exact main/renderer boundary `dialog:selectMidiFile` already established, `Song.songId` optional (assigned on first save, mirroring how `SongEvent.id` is assigned at parse time). Confirmed two scope calls with the user: explicit "Save to Library" action (not silent auto-save), and Song Library rows showing only title + note count for now (composer/last-practiced/progress don't exist in the data yet).
+- Mid-design, the user added a second, related request: user-defined practice segments — a named sub-range of a song that loops back to its start instead of stopping, for repeated practice of one passage, saved as an attribute of the song. Flagged the real design questions this raised (how does a chord "complete" given monophonic pitch detection can't hear a segment's boundary events any differently; does this ship in the same branch) before implementing — user chose "any one note of the chord" and "same branch, sequenced commits."
+- Implemented on `feature/song-persistence` in two sequenced, independently-verified commits:
+  1. **Persistence** — `Song` gained `songId?`/`segments: []`; new `useSongLibrary` hook (save/list/load/delete); `useSongImport` gained a `loadExisting()` action so a library-loaded song lands in the same review state a fresh MIDI import does; `ImportSongPage` gained Save/Update-in-Library; `SongLibraryPage` went from a placeholder to a real list; `App.tsx` gained one small piece of shared state (`songIdToOpen`) threading a library click into Import Song — the one deliberate exception to pages otherwise owning fully independent state.
+  2. **Segments** — `SongSegment` (event-id start/end range) + `resolveSegmentBounds` (pure, resolves fresh each call, falls back to the full song if a referenced event was deleted); `useSongImport`'s `stepPreview` became range- and wrap-aware (full-song navigation unchanged; an active segment wraps at both ends instead of clamping); `ImportSongPage` gained mark-start/mark-end/name/save/practice/delete/exit segment UI. Looping fell out of `stepPreview`'s own bounds logic — `useSongAutoAdvance` itself needed zero changes, since it always just calls `stepPreview(1)`.
+- Verified far beyond typecheck/lint/test this session: built the app and drove it with a Playwright `_electron` script that exercised the **real** IPC round trip (`window.api.saveSong`/`listSongs`/`loadSong`/`deleteSong` against the actual main process and real disk I/O, not a mock) end-to-end — save → list → open from library → auto-load → mic auto-start, and separately the full segment flow (mark start/end → name → save → activate → step forward through the wrap → step backward through the wrap → exit back to full song), confirming the "Note X of Y" labels and looping behavior exactly matched the design at every step. Discovered and correctly diagnosed a false alarm along the way: the segment tools appeared missing from a screenshot, but `.app-content`'s own `overflow-y: auto` (not the document body) was the scroll container, so a `fullPage` screenshot couldn't reach it — confirmed by scrolling that container directly, not a rendering bug.
+- 124/124 tests passing (18 new: `useSongLibrary`, `resolveSegmentBounds`, segment-wrap/clear cases in `useSongImport`); typecheck/lint clean throughout both commits.
+- Updated `docs/Roadmap.md` (Milestone 6 now complete; Milestone 7 — scored song-based practice — is the new current milestone), `docs/Architecture.md`, `docs/Design-Decisions.md` (entries 40-42).
+
+**New concepts learned:**
+
+- Electron IPC payloads pass through structured clone, not JSON strings — a plain object round-trips as-is, so main only needs `JSON.stringify`/`JSON.parse` at the actual filesystem boundary, not at the IPC boundary itself.
+- Typing an Electron preload API boundary via structurally-duplicated interfaces (rather than importing the renderer's real types) is necessary, not just cautious: `tsconfig.node.json` (which covers `src/preload/`) doesn't include `src/renderer` at all, confirmed by checking the actual tsconfig `include` arrays rather than assuming — so a cross-boundary type import would fail typecheck outright, not just be poor practice.
+- `git stash push --keep-index` as a way to verify a partially-staged commit actually builds in isolation before creating it: stage exactly the files for one commit, stash everything else (which reverts the working tree to match the index), run the full verification suite, commit, then pop the stash and repeat for the next slice.
+- A CSS `overflow-y: auto` on an inner container (not `<body>`) means a full-page screenshot tool can't capture content beyond that container's own viewport — the outer document never grows, only the inner div scrolls. Diagnosed by checking `.segment-tools` actually existed in the DOM (it did) before concluding anything was broken.
+
+**Remaining work:**
+
+- Merge `feature/song-persistence` into `main` (pending final go-ahead).
+- Milestone 7 (scored song-based practice / real Test Mode content) is undesigned.
+- As with every mic-dependent feature in this project, the real permission-prompt + native-file-picker + real-microphone flow still needs manual verification on a real machine — this session's IPC/UI verification was thorough but automated, run in an environment with no real mic or file dialog to test against.
+
+**Suggested next task:**
+Design Milestone 7: what "scored" means for song practice (a completion state? an accuracy count like Practice Mode's `correctCount`?), and whether it lives permanently on the Import Song preview or becomes real `TestModePage` content.
+
+---
+
 ## 2026-08-03
 
 **Work completed:**
