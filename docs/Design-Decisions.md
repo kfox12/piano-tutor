@@ -438,3 +438,78 @@ A running log of significant engineering decisions, in the style of Architecture
 - _A separate "preview" highlight color/prop, independent of the practice-mode target styling_ — would avoid touching `deriveKeyStates`, but introduces a second visual vocabulary for what's conceptually the same thing ("the note(s) to play now").
 
 **Trade-offs:** Manual click-to-target is now disabled whenever a song is loaded (same reasoning as entry 22: a click can't reach what's actually controlling the display) — there's currently no way to "close" an imported song and return to manual click-to-target without importing a different file or restarting the app; acceptable for now, worth revisiting if that turns out to matter in practice.
+
+---
+
+## 35. Multi-page navigation via in-memory `useState<View>`, not a router
+
+**Decision:** `App.tsx` holds a single `view: View` state value and renders one page component conditionally; `TopNav`/`HomePage` change it by calling `onNavigate`. No routing library (e.g. `react-router`) was introduced.
+
+**Reasoning:** Piano Tutor is a single Electron window, not a multi-URL web app — there's no address bar, no deep links to support, no back/forward browser buttons, and no server-rendered routes. A router's entire value proposition (URL-addressable state, history navigation) has no consumer here. A plain `useState` switch is the smallest thing that satisfies the actual requirement (a top nav that swaps which page is visible), consistent with CLAUDE.md's guidance against designing for hypothetical future requirements.
+
+**Alternatives considered:**
+
+- _`react-router` (or similar)_ — standard for web apps, but adds a dependency and API surface (routes, `Link`, history) for capabilities (URL sync, browser history) this desktop app doesn't use.
+
+**Trade-offs:** If a future need emerges for URL-like deep-linking (e.g. restoring "which page was open" across app restarts), that would need to be built explicitly rather than falling out of a router for free. Not a current requirement.
+
+---
+
+## 36. Theme resolved once in JS; no `prefers-color-scheme` media query in CSS
+
+**Decision:** `ThemeProvider` ([theme/ThemeContext.tsx](../src/renderer/src/theme/ThemeContext.tsx)) resolves the active theme once — from `localStorage`, falling back to `window.matchMedia('(prefers-color-scheme: dark)')` only if nothing is stored — and stamps the result onto `<html data-theme>`. `base.css` defines light/dark token values keyed purely off `[data-theme='light']`/`[data-theme='dark']`; there is no `@media (prefers-color-scheme: dark)` block in the stylesheet.
+
+**Reasoning:** The alternative — defining tokens in a `prefers-color-scheme` media query *and* in explicit `data-theme` overrides, so an explicit user choice can win over the OS setting — means every token exists in two places that have to be kept in sync by hand. Resolving the theme once in JS and always setting `data-theme` explicitly (even when following the system default) means the CSS only ever needs one clean set of light values and one clean set of dark values, with a single source of truth for *which one applies*.
+
+**Alternatives considered:**
+
+- _CSS-only via `prefers-color-scheme` + a `[data-theme='light']` override block for explicit choices_ — avoids a JS resolution step, but duplicates every dark-mode token definition (once for the media query, once for the override), and that duplication is exactly the kind of drift risk worth avoiding for a token set that will keep growing.
+
+**Trade-offs:** The very first paint happens before React runs `useEffect`, so there's a theoretical flash-of-default-theme on cold start; not noticeable in practice for an Electron window (no server-rendered HTML to flash against) and not worth the added complexity of an inline pre-React script to prevent it.
+
+---
+
+## 37. Song Library and Test Mode ship as placeholder pages, not omitted from navigation
+
+**Decision:** The redesigned top nav includes all five views from [ui_redesign.md](ui_redesign.md) — Home, Import Song, Song Library, Practice Mode, Test Mode — even though Song Library (needs disk persistence, Milestone 6, not yet built) and Test Mode (not yet designed at all) have no real functionality behind them yet. Both render a shared `PlaceholderPage` component with an icon, a short explanation of what's missing, and "Coming soon."
+
+**Reasoning:** User decision, made explicitly when this trade-off was raised: build the nav shell as specified now, and let the two unbuilt views show an honest "not yet" rather than either faking functionality or shipping an incomplete-looking three-item nav. This keeps the redesign's information architecture intact without pretending Milestone 6 work already exists.
+
+**Alternatives considered:**
+
+- _Omit Song Library/Test Mode from the nav until they're real_ — considered and rejected by the user; would mean redoing the nav again once those milestones start, and doesn't match the specified design.
+- _Build real functionality for both now_ — rejected as scope creep for a UI-redesign task; Song Library needs the not-yet-designed persistence layer, and Test Mode needs a design discussion of its own (how does it differ from Practice Mode?) that didn't happen here.
+
+**Trade-offs:** Two nav items currently lead to dead ends beyond a short explanation — acceptable short-term, since the alternative (hiding them) was explicitly declined.
+
+---
+
+## 38. Mic auto-start keyed off `songImportState.status`, not the whole import state
+
+**Decision:** `ImportSongPage` auto-starts the microphone in a `useEffect` keyed on `[songImportState.status, startMic]` only — not on `songImportState` itself, and not on the mic's own status. `useMicrophoneStream.start()` was made idempotent (no-ops if already `'active'` or `'requesting'`, checked via a ref updated in its own effect) so the auto-start call never has to branch on current mic status itself.
+
+**Reasoning:** The naive version of "auto-start when a song is loaded" is `useEffect(() => { if (songImportState.status === 'success') start() }, [songImportState])` — but `songImportState` gets a new object identity on every `stepPreview`/`updateSong` call while staying in the `'success'` status, so that version would restart the mic on every Prev/Next click. Depending on the `.status` string alone fixes that: the effect only re-fires on an actual state-machine transition (`'importing' → 'success'`), which happens once per import. The same reasoning ruled out adding the mic's own `state.status` to the dependency array — doing so would re-run the effect the moment a user clicks "Stop" (since that changes `micState.status` to `'idle'`), immediately calling `start()` again and making the Stop button non-functional during song review. Pushing the "don't restart if already active" guard into `useMicrophoneStream.start()` itself (rather than checking `micState.status` at the call site) keeps that invariant out of the dependency array entirely.
+
+**Alternatives considered:**
+
+- _Guard on `songImportState.status === 'success' && micState.status === 'idle'` inside the effect, with both in the dependency array_ — the obvious first draft; rejected because it breaks the Stop button as described above.
+- _Track "already auto-started for this import" with a boolean ref instead of making `start()` idempotent_ — would work, but duplicates the guard at every call site that wants safe repeated calls, instead of making the shared hook itself safe to call unconditionally.
+
+**Trade-offs:** None significant — this is a correctness fix for a real bug the naive version would have shipped with (verified by reasoning through the Stop-button scenario before writing the effect, not caught after the fact).
+
+---
+
+## 39. Song preview auto-advances on a correct note; chords are satisfied by any one note
+
+**Decision:** `useSongAutoAdvance` ([song/useSongAutoAdvance.ts](../src/renderer/src/song/useSongAutoAdvance.ts)) advances `ImportSongPage`'s preview cursor automatically when the live-detected note matches the current event — any one note of a chord counts as a match, not all of them. Prev/Next remain available for manual navigation. This is a deliberately small slice of the "song-based practice session" idea already scoped to Milestone 6 (see entry 33) — no scoring, no completion state, no dedicated page — pulled forward because the user's actual expectation from importing a song was to be able to start playing it immediately, not just preview it note-by-note with button clicks.
+
+**Reasoning:** Pitch detection is monophonic (entry 11) — the mic can only ever report one detected note at a time, so it is structurally incapable of confirming "all three notes of this chord are sounding simultaneously." Any-one-note is the simplest rule that's still meaningful: it rewards playing a note that's actually part of the chord, and was the user's explicit choice among the three options discussed (any-one-note / require-all-in-sequence / no-auto-advance-for-chords) when this trade-off was raised.
+
+The advance itself needed edge-detection (a `matchedRef` that's only cleared when the reading goes quiet or stops matching), not a plain "if matches, advance" check on every reading. `usePracticeSession`'s equivalent effect gets away without this because `pickRandomTarget`'s no-repeat guarantee (entry 21) means a held note can never also satisfy the *next* target — but a song's note sequence is fixed by the imported data and legitimately can contain the same note twice in a row, so that shortcut doesn't hold here. Without edge-detection, a single held note would fire `onMatch` on every animation frame (dozens of times/second — `usePitchDetector` re-emits a new reading every frame even for a held note, the same behavior noted in entry 24's no-miss-tracking discussion) — and worse, `stepPreview` would race far past the intended next note in the same held breath.
+
+**Alternatives considered:**
+
+- _Require every note of a chord to sound in sequence before advancing_ — more faithful to "play this chord," but needs tracking which notes have been hit within the current event, considered but not chosen (see the user's explicit pick above).
+- _A pure reducer parallel to `practiceSessionReducer.ts`_ — would match the codebase's established functional-core/imperative-shell pattern more closely, but for a feature this small (one boolean edge-detector) it would add a reducer/action-type file for logic that fits in a few lines; the hook itself is still independently unit-tested via `renderHook`, so the testability goal is met without the extra structure.
+
+**Trade-offs:** Because chords only need one matching note, a user could technically "complete" a chord event by playing just its lowest or most convenient note every time, never the full chord — an accepted simplification given the monophonic hardware constraint, not something a different implementation choice could fix.

@@ -4,6 +4,43 @@ Reverse-chronological log of work sessions. Append a new entry at the top after 
 
 ---
 
+## 2026-08-03
+
+**Work completed:**
+
+- Reviewed `docs/ui_redesign.md` (a design spec the user provided) against the current app — a single flat `App.tsx` with everything always visible, no navigation, no theming — and flagged before implementing that two of the spec's five nav items (Song Library, Test Mode) have no real functionality behind them yet (Song Library needs disk persistence — Milestone 6, not started; Test Mode isn't designed at all). User decided: build both as reachable nav items with a "Coming soon" placeholder rather than omitting them or building real functionality now.
+- Confirmed `feature/song-import` (Milestone 5) was already merged upstream (PR #4) but not yet pulled to local `main`; fast-forwarded local `main` and branched `feature/ui-redesign` from it.
+- Implemented the redesign, purely a presentation-layer change (no audio/pitch/keyboard/song logic touched):
+  - `src/renderer/src/navigation.ts` + `layout/` (`AppShell`, `TopNav`, `ThemeToggle`, `PlaceholderPage`) — state-based view switching (`useState<View>` in `App.tsx`), no router; see Design-Decisions entry 35 for why.
+  - `src/renderer/src/theme/` (`ThemeContext`/`ThemeProvider`, `useTheme`, `theme-context.ts`) — light/dark theme resolved once in JS (stored choice → `prefers-color-scheme` fallback), stamped as `data-theme` on `<html>`; CSS tokens keyed off that attribute only, no `prefers-color-scheme` media query in CSS — see Design-Decisions entry 36. Split into three files (context object / provider component / hook) to satisfy the `react-refresh/only-export-components` ESLint rule.
+  - `src/renderer/src/pages/` — `HomePage` (3-card dashboard), `PracticeModePage` and `ImportSongPage` (existing mic/practice and MIDI-import/edit logic relocated from `App.tsx` unchanged), `SongLibraryPage`/`TestModePage` (placeholders).
+  - Full CSS rewrite (`base.css` tokens, `main.css` components) to the spec's rounded-corners/blue-accent/card-hover-elevation language, keeping the existing plain-CSS-file convention (no Tailwind/CSS-in-JS).
+- `npm run typecheck`, `npm run lint`, and `npm test` (100/100) all pass.
+- Manually verified the actual running app: built with `npm run build`, drove it with a throwaway Playwright `_electron` script (not committed — no headless-GUI-testing infra exists in this project yet) to screenshot every page in both themes and confirm nav highlighting, theme persistence across navigation, and the practice keyboard all render correctly. Hit the `ELECTRON_RUN_AS_NODE` env var issue again (already documented from the very first session) — had to unset it for the launch to work.
+- Follow-up fix, reported after the first pass: the mic wasn't listening after a MIDI import, since the redesign had moved mic capture into `PracticeModePage` only and `ImportSongPage` hard-coded `currentReading={null}`. Wired `useMicrophoneStream`/`usePitchDetector` into `ImportSongPage` and auto-start the mic the moment an import succeeds, so the keyboard shows live correct/incorrect feedback against the previewed note right away. Made `useMicrophoneStream.start()` idempotent (ref-tracked, no-ops while already active/requesting) so the auto-start call — and any future caller — never has to check current status first; caught and fixed a real bug before it shipped, where naively depending on the mic's own status in the auto-start effect would have made the "Stop" button re-trigger `start()` immediately. Added a regression test for the idempotency guard. See [Design-Decisions.md](Design-Decisions.md) entry 38.
+- Second follow-up: the user expected the previewed song to *auto-advance* as correct notes are played, not just show correct/incorrect color while requiring manual Prev/Next. Flagged before implementing that this was never actually built (not even pre-redesign) and is explicitly the still-undesigned "song-based practice session" piece of Milestone 6 — plus a real design snag, since pitch detection is monophonic and can't confirm a full chord sounding at once. Got two explicit decisions from the user before writing code: chords advance on any one matching note (not requiring the full chord), and build a scoped version now rather than opening a full Milestone 6 design session. Implemented `useSongAutoAdvance` — a small, independently unit-tested hook using edge-detection (a ref that only resets when the reading goes quiet or stops matching) so a held or repeated note fires the advance once per strike, not once per animation frame, and so a song's legitimate back-to-back-identical-note sequences work correctly (unlike Practice Mode's random targets, a song can't lean on "never repeat the previous target" to sidestep this). Wired into `ImportSongPage` alongside the existing Prev/Next controls. See [Design-Decisions.md](Design-Decisions.md) entry 39.
+- Updated `docs/Roadmap.md`, `docs/Architecture.md`, `docs/Design-Decisions.md` (entries 35-39). 107/107 tests passing throughout; typecheck/lint clean; both follow-ups re-verified with the same headless Playwright render check (no console errors) used for the first pass.
+
+**New concepts learned:**
+
+- The `react-refresh/only-export-components` ESLint rule: a file can only export React components if it wants Fast Refresh (hot-reload-without-losing-state) to work correctly for it — mixing a component export with a non-component export (like a hook) in the same file breaks that, hence splitting `ThemeContext.tsx`/`theme-context.ts`/`useTheme.ts` into three single-purpose files.
+- Resolving a CSS custom-property theme once in JS (vs. duplicating token values across a `prefers-color-scheme` media query and an explicit override block) as a way to keep a single source of truth instead of two definitions that can drift.
+- Playwright's `_electron` module as a way to drive and screenshot an Electron app from a script — useful for self-verifying UI work in an environment with no visible display, without adding a testing dependency to the project itself (installed in an isolated scratch directory, not `package.json`).
+- A `useEffect` dependency array is a *re-run trigger list*, not just a "what does this effect use" list — depending on a whole object (`songImportState`) instead of the one field that actually signals a state-machine transition (`songImportState.status`) causes the effect to re-fire on unrelated updates; and depending on a value the effect's own action changes (mic status, changed by calling `start()`/`stop()`) can create an unwanted re-trigger loop. Fixed by depending on the narrower, transition-signaling value and pushing the "don't repeat this if already done" guard into the callee (`start()` itself) instead.
+- Edge-detection (only reacting to a value's *transition* into a matching state, not every render where it happens to match) as a recurring pattern for handling a real-time signal that re-fires every animation frame — first seen conceptually in the "no naive miss-counting" reasoning from Milestone 4, now actually implemented for the song auto-advance, and framed explicitly this time as a shortcut (`pickRandomTarget`'s no-repeat guarantee) that worked for one case but doesn't generalize to a fixed, possibly-repeating sequence like a song.
+
+**Remaining work:**
+
+- Merge `feature/ui-redesign` into `main` (pending final go-ahead).
+- Song Library and Test Mode remain placeholders until Milestone 6 (song-based practice + persistence) is designed and built.
+- Both mic-related fixes (auto-start on import, auto-advance on correct note) are verified by code review, unit tests, and a headless render check (no console errors) — neither has been manually verified against a real microphone + real MIDI file + the native OS file-picker dialog, none of which can be driven from this headless environment. Worth a real-piano check next session, consistent with how every other mic-dependent feature in this project has been verified.
+- Milestone 6 proper (scoring/completion state for the song practice sequence, a decision on whether it stays on the Import Song preview or moves to a dedicated `PracticeModePage`/`TestModePage` flow, and disk persistence) is still undesigned.
+
+**Suggested next task:**
+Design Milestone 6: song-based practice sessions and/or persisting imported songs to disk — the same two pieces called out as the current milestone before this redesign session, now also what `SongLibraryPage`/`TestModePage` need to become real.
+
+---
+
 ## 2026-07-30
 
 **Work completed:**

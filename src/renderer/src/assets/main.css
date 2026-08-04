@@ -1,147 +1,379 @@
 @import './base.css';
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
   user-select: none;
 }
 
 #root {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
   width: 100%;
-  margin-bottom: 80px;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-4);
+  height: 38px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  background-color: var(--color-accent);
+  box-shadow: var(--shadow-card);
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+button:hover {
+  opacity: 0.88;
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+select {
+  font: inherit;
+  color: var(--color-text-1);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
 }
 
 .tip {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-2);
+  font-weight: 500;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text-1);
+}
+
+/* ---------- App shell & navigation ---------- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.top-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.top-nav--minimal {
+  justify-content: space-between;
+}
+
+.top-nav__brand {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  height: auto;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-text-1);
+}
+
+.top-nav__brand:hover {
+  opacity: 0.75;
+}
+
+.top-nav__items {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+}
+
+.top-nav__item {
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: var(--space-2) var(--space-4);
+  height: auto;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-2);
+}
+
+.top-nav__item:hover {
+  opacity: 1;
+  background-color: var(--color-bg-elevated-hover);
+  color: var(--color-text-1);
+}
+
+.top-nav__item--active {
+  color: var(--color-accent-text);
+  background-color: var(--color-accent);
+}
+
+.top-nav__item--active:hover {
+  background-color: var(--color-accent);
+  opacity: 0.88;
+}
+
+.theme-toggle {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 16px;
-  line-height: 24px;
-  color: var(--ev-c-text-2);
+  color: var(--color-text-1);
+  background-color: var(--color-bg-elevated);
+}
+
+.theme-toggle:hover {
+  opacity: 1;
+  background-color: var(--color-bg-elevated-hover);
+}
+
+.app-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-6) var(--space-5) var(--space-7);
+  gap: var(--space-5);
+}
+
+/* ---------- Home page ---------- */
+
+.home-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-7);
+  width: 100%;
+  max-width: 960px;
+  padding-top: var(--space-6);
+}
+
+.home-page__title {
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--color-text-1);
+}
+
+.home-page__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-5);
+  width: 100%;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: var(--space-2);
+  height: auto;
+  padding: var(--space-5);
+  color: inherit;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition:
+    transform var(--transition-medium),
+    box-shadow var(--transition-medium),
+    background-color var(--transition-medium);
+}
+
+.home-card:hover {
+  opacity: 1;
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card-hover);
+  background-color: var(--color-bg-elevated-hover);
+}
+
+.home-card__icon {
+  font-size: 28px;
+}
+
+.home-card__title {
+  font-size: 18px;
   font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.home-card__description {
+  font-size: 14px;
+  color: var(--color-text-2);
+}
+
+.home-card__detail {
+  font-size: 13px;
+  color: var(--color-text-2);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height var(--transition-medium),
+    opacity var(--transition-medium);
+}
+
+.home-card:hover .home-card__detail,
+.home-card:focus-visible .home-card__detail {
+  max-height: 80px;
+  opacity: 1;
+}
+
+/* ---------- Placeholder pages (Song Library, Test Mode) ---------- */
+
+.placeholder-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  padding-top: var(--space-7);
+}
+
+.placeholder-page__icon {
+  font-size: 40px;
+}
+
+.placeholder-page__description {
+  max-width: 420px;
+  color: var(--color-text-2);
+}
+
+/* ---------- Practice mode & import pages ---------- */
+
+.practice-page,
+.import-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 1400px;
 }
 
 .mic-level-meter {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin: 24px 0;
-}
-
-.mic-level-meter button {
-  cursor: pointer;
-  border: 1px solid transparent;
-  border-radius: 20px;
-  padding: 0 20px;
-  line-height: 38px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ev-button-alt-text);
-  background-color: var(--ev-button-alt-bg);
-}
-
-.mic-level-meter button:hover {
-  background-color: var(--ev-button-alt-hover-bg);
+  gap: var(--space-3);
 }
 
 .level-bar-track {
   width: 240px;
-  height: 12px;
-  border-radius: 6px;
-  background-color: var(--ev-c-gray-3);
+  height: 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-border);
   overflow: hidden;
 }
 
 .level-bar-fill {
   height: 100%;
-  background-color: #6988e6;
+  background-color: var(--color-accent);
   transition: width 60ms linear;
 }
 
 .pitch-readout {
-  font-size: 16px;
-  line-height: 24px;
-  color: var(--ev-c-text-1);
+  font-size: 15px;
+  color: var(--color-text-1);
   font-weight: 600;
-  margin: 0 0 24px;
 }
 
+.practice-session {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ---------- Keyboard ---------- */
+
 .keyboard-display {
-  width: 92%;
+  width: 100%;
   max-width: 1400px;
   height: auto;
-  margin: 0 0 24px;
 }
 
 .piano-key {
   cursor: pointer;
-  stroke: var(--ev-c-gray-1);
+  stroke: var(--color-border);
   stroke-width: 0.5;
+  transition: fill var(--transition-fast);
 }
 
 .piano-key--white {
-  fill: var(--ev-c-white);
+  fill: var(--color-key-white);
 }
 
 .piano-key--black {
-  fill: var(--ev-c-black-soft);
+  fill: var(--color-key-black);
 }
 
 .piano-key--target {
-  fill: #6988e6;
+  fill: var(--color-accent);
 }
 
 .piano-key--playing {
-  fill: #f0c419;
+  fill: var(--color-playing);
 }
 
 .piano-key--correct {
-  fill: #3fb950;
+  fill: var(--color-success);
 }
 
 .piano-key--incorrect {
-  fill: #e5534b;
+  fill: var(--color-error);
 }
 
-.song-import {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin: 0 0 24px;
-}
-
-.song-import button {
-  cursor: pointer;
-  border: 1px solid transparent;
-  border-radius: 20px;
-  padding: 0 20px;
-  line-height: 38px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ev-button-alt-text);
-  background-color: var(--ev-button-alt-bg);
-}
-
-.song-import button:hover {
-  background-color: var(--ev-button-alt-hover-bg);
-}
+/* ---------- Song import & review ---------- */
 
 .song-review {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
+  width: 100%;
 }
 
 .song-review__nav {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .song-editor {
@@ -151,80 +383,54 @@ body {
 
 .song-editor__events {
   list-style: none;
-  padding: 8px;
+  padding: var(--space-2);
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 220px;
+  gap: var(--space-2);
+  max-height: 260px;
   overflow-y: auto;
-  border: 1px solid var(--ev-c-gray-3);
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .song-editor__event {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .song-editor__index {
-  color: var(--ev-c-text-2);
+  color: var(--color-text-2);
   min-width: 24px;
 }
 
 .song-editor__note {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background-color: var(--ev-c-gray-3);
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
 }
+
+/* ---------- Versions footer ---------- */
 
 .versions {
-  position: absolute;
-  bottom: 30px;
-  margin: 0 auto;
-  padding: 15px 0;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
   font-family: 'Menlo', 'Lucida Console', monospace;
-  display: inline-flex;
-  overflow: hidden;
-  align-items: center;
-  border-radius: 22px;
-  background-color: #202127;
-  backdrop-filter: blur(24px);
-}
-
-.versions li {
-  display: block;
-  float: left;
-  border-right: 1px solid var(--ev-c-gray-1);
-  padding: 0 20px;
-  font-size: 14px;
-  line-height: 14px;
-  opacity: 0.8;
-  &:last-child {
-    border: none;
-  }
-}
-
-@media (max-width: 720px) {
-  .text {
-    font-size: 20px;
-  }
+  font-size: 11px;
+  color: var(--color-text-3);
 }
 
 @media (max-width: 620px) {
   .versions {
-    display: none;
-  }
-}
-
-@media (max-width: 350px) {
-  .tip,
-  .actions {
     display: none;
   }
 }

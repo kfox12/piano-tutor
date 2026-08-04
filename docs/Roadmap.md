@@ -18,10 +18,14 @@ This roadmap tracks the piano tutor app's milestones. Scope is **microphone-base
 
 _Note: the originally-planned "Progress Tracking" milestone (streaks/accuracy over time) was dropped — not what the user actually wants. The real goal is practicing specific songs, starting with this import pipeline._
 
+**UI Redesign** — restyled the app to the spec in [ui_redesign.md](ui_redesign.md), on `feature/ui-redesign`. Introduced multi-page navigation (Home, Import Song, Song Library, Practice Mode, Test Mode) behind a top nav that appears once a mode is selected, a card-based Home dashboard, and a light/dark theme toggle. Existing functionality (mic practice, MIDI import/edit) was relocated into `PracticeModePage`/`ImportSongPage` unchanged; Song Library and Test Mode ship as "Coming soon" placeholders since their underlying features aren't built yet. Purely a presentation-layer change — no audio/pitch/keyboard/song logic was touched. See [Design-Decisions.md](Design-Decisions.md) entries 35-37.
+
+**Import Song: mic auto-start & auto-advance** — two follow-up fixes on the same branch, made after hands-on use surfaced real gaps. First, the mic wasn't listening at all on the Import Song page (the redesign had scoped it to `PracticeModePage` only) — now it auto-starts the moment an import succeeds. Second, playing the previewed note/chord correctly now auto-advances to the next one (`useSongAutoAdvance`), the same immediate-advance feel as Practice Mode, instead of requiring manual Prev/Next for every note — this is a small, scoped slice of what Milestone 6 below calls "song-based practice," pulled forward because it's what "import a song and start playing it" actually implies. It does **not** include scoring, a dedicated practice page, or persistence — those remain Milestone 6. See [Design-Decisions.md](Design-Decisions.md) entries 38-39.
+
 ## Current Milestone
 
 **Song-based practice & persistence (Milestone 6, not yet named/designed)**
 
-Two follow-on pieces once song import is merged: (1) a practice-session mode that steps through an imported `Song`'s events in order, instead of `usePracticeSession`'s random targets; (2) saving imported/edited songs to disk (via preload/IPC to the main process) so they persist across app restarts. Not yet started — design not yet discussed.
+What's left after the Import Song auto-advance fix above: (1) turning that note-stepping into an actual scored/trackable practice session (with a completion state, and a decision on whether it lives on `PracticeModePage`/`TestModePage` instead of the Import Song preview); (2) saving imported/edited songs to disk (via preload/IPC to the main process) so they persist across app restarts. This is also what `SongLibraryPage` and `TestModePage` (currently placeholders, see UI Redesign above) need before they can show real content. Not yet started — design not yet discussed.
 
 Milestones are strictly ordered since each depends on the previous one's output. Each is scoped to roughly a month of part-time work.
