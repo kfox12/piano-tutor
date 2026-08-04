@@ -11,6 +11,7 @@ export type SongImportState =
 interface UseSongImportResult {
   state: SongImportState
   importFile: () => Promise<void>
+  loadExisting: (song: Song) => void
   updateSong: (song: Song) => void
   stepPreview: (delta: number) => void
 }
@@ -42,6 +43,13 @@ export function useSongImport(): UseSongImportResult {
     }
   }, [])
 
+  // Puts an already-complete Song (e.g. loaded from the saved library)
+  // straight into preview, the same end state importFile() reaches after
+  // parsing a MIDI file — the review UI doesn't care which path got it there.
+  const loadExisting = useCallback((song: Song) => {
+    setState({ status: 'success', song, previewIndex: 0 })
+  }, [])
+
   const updateSong = useCallback((song: Song) => {
     setState((current) =>
       current.status === 'success'
@@ -65,5 +73,5 @@ export function useSongImport(): UseSongImportResult {
     )
   }, [])
 
-  return { state, importFile, updateSong, stepPreview }
+  return { state, importFile, loadExisting, updateSong, stepPreview }
 }

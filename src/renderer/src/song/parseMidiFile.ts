@@ -167,7 +167,7 @@ export function parseMidiFile(buffer: ArrayBuffer, title: string): Song {
     }
   }
 
-  return { title, events: groupIntoEvents(rawNotes) }
+  return { title, events: groupIntoEvents(rawNotes), segments: [] }
 }
 
 function groupIntoEvents(rawNotes: RawNoteOn[]): SongEvent[] {

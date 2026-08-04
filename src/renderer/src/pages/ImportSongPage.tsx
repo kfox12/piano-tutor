@@ -7,10 +7,31 @@ import PitchReadout from '../components/PitchReadout'
 import SongEditor from '../components/SongEditor'
 import { useSongAutoAdvance } from '../song/useSongAutoAdvance'
 import { useSongImport } from '../song/useSongImport'
+import { useSongLibrary } from '../song/useSongLibrary'
 
-function ImportSongPage(): React.JSX.Element {
-  const { state: songImportState, importFile, updateSong, stepPreview } = useSongImport()
+type SaveState = { status: 'idle' | 'saving' | 'saved' | 'error'; message?: string }
+
+interface ImportSongPageProps {
+  /** Set when arriving here from a Song Library row click. */
+  songIdToOpen?: string | null
+  onSongIdConsumed?: () => void
+}
+
+function ImportSongPage({
+  songIdToOpen = null,
+  onSongIdConsumed
+}: ImportSongPageProps): React.JSX.Element {
+  const {
+    state: songImportState,
+    importFile,
+    loadExisting,
+    updateSong,
+    stepPreview
+  } = useSongImport()
+  const { save: saveToLibrary, load: loadFromLibrary } = useSongLibrary()
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [saveState, setSaveState] = useState<SaveState>({ status: 'idle' })
+  const [libraryLoadError, setLibraryLoadError] = useState<string | null>(null)
   const { state: micState, start: startMic, stop: stopMic } = useMicrophoneStream()
   const analyser = micState.status === 'active' ? micState.analyser : null
   const reading = usePitchDetector(analyser)
@@ -27,6 +48,29 @@ function ImportSongPage(): React.JSX.Element {
     }
   }, [songImportState.status, startMic])
 
+  // Opening a song from the library (App.tsx hands us its id) loads it
+  // straight into the same review UI a fresh MIDI import lands in.
+  useEffect(() => {
+    if (!songIdToOpen) return
+    let cancelled = false
+    loadFromLibrary(songIdToOpen)
+      .then((song) => {
+        if (cancelled) return
+        setLibraryLoadError(null)
+        loadExisting(song)
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setLibraryLoadError(error instanceof Error ? error.message : 'Failed to load song')
+      })
+      .finally(() => {
+        if (!cancelled) onSongIdConsumed?.()
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [songIdToOpen, loadFromLibrary, loadExisting, onSongIdConsumed])
+
   const currentSongEvent =
     songImportState.status === 'success'
       ? (songImportState.song.events[songImportState.previewIndex] ?? null)
@@ -41,13 +85,38 @@ function ImportSongPage(): React.JSX.Element {
   // feel as Practice Mode — Prev/Next stay available for manual correction.
   useSongAutoAdvance(reading, currentSongEvent, advanceToNextEvent)
 
+  const handleImportFile = async (): Promise<void> => {
+    setSaveState({ status: 'idle' })
+    await importFile()
+  }
+
+  const handleSaveToLibrary = async (): Promise<void> => {
+    if (songImportState.status !== 'success') return
+    setSaveState({ status: 'saving' })
+    try {
+      const saved = await saveToLibrary(songImportState.song)
+      updateSong(saved)
+      setSaveState({ status: 'saved' })
+    } catch (error) {
+      setSaveState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Failed to save song'
+      })
+    }
+  }
+
   return (
     <div className="import-page">
       <h1 className="page-title">Import Song</h1>
-      <button type="button" onClick={importFile} disabled={songImportState.status === 'importing'}>
+      <button
+        type="button"
+        onClick={handleImportFile}
+        disabled={songImportState.status === 'importing'}
+      >
         Import MIDI File…
       </button>
       {songImportState.status === 'error' && <p className="tip">{songImportState.message}</p>}
+      {libraryLoadError && <p className="tip">{libraryLoadError}</p>}
       {songImportState.status === 'success' && (
         <div className="song-review">
           <p className="tip">{songImportState.song.title}</p>
@@ -85,6 +154,15 @@ function ImportSongPage(): React.JSX.Element {
             {isEditorOpen ? 'Hide Notes' : 'Edit Notes'}
           </button>
           {isEditorOpen && <SongEditor song={songImportState.song} onChange={updateSong} />}
+          <button
+            type="button"
+            onClick={handleSaveToLibrary}
+            disabled={saveState.status === 'saving'}
+          >
+            {songImportState.song.songId ? 'Update in Library' : 'Save to Library'}
+          </button>
+          {saveState.status === 'saved' && <p className="tip">Saved.</p>}
+          {saveState.status === 'error' && <p className="tip">{saveState.message}</p>}
         </div>
       )}
     </div>

@@ -10,7 +10,8 @@ vi.mock('./parseMidiFile', () => ({
 
 const FAKE_SONG: Song = {
   title: 'Test',
-  events: [{ id: 'event-1', notes: [{ midi: 60, name: 'C', octave: 4 }] }]
+  events: [{ id: 'event-1', notes: [{ midi: 60, name: 'C', octave: 4 }] }],
+  segments: []
 }
 
 const THREE_EVENT_SONG: Song = {
@@ -19,7 +20,8 @@ const THREE_EVENT_SONG: Song = {
     { id: 'event-1', notes: [{ midi: 60, name: 'C', octave: 4 }] },
     { id: 'event-2', notes: [{ midi: 62, name: 'D', octave: 4 }] },
     { id: 'event-3', notes: [{ midi: 64, name: 'E', octave: 4 }] }
-  ]
+  ],
+  segments: []
 }
 
 function fakeSelectedFile(): { fileName: string; data: Uint8Array } {
@@ -28,7 +30,13 @@ function fakeSelectedFile(): { fileName: string; data: Uint8Array } {
 
 beforeEach(() => {
   parseMidiFileMock.mockReset()
-  window.api = { selectMidiFile: vi.fn() }
+  window.api = {
+    selectMidiFile: vi.fn(),
+    saveSong: vi.fn(),
+    listSongs: vi.fn(),
+    loadSong: vi.fn(),
+    deleteSong: vi.fn()
+  }
 })
 
 describe('useSongImport', () => {
@@ -112,6 +120,19 @@ describe('useSongImport', () => {
 
     act(() => result.current.stepPreview(-10)) // attempt to go before the first event
     expect(result.current.state).toMatchObject({ previewIndex: 0 })
+  })
+
+  it('loadExisting puts a song straight into success state at previewIndex 0', () => {
+    const { result } = renderHook(() => useSongImport())
+
+    act(() => result.current.loadExisting(THREE_EVENT_SONG))
+
+    expect(result.current.state).toEqual({
+      status: 'success',
+      song: THREE_EVENT_SONG,
+      previewIndex: 0
+    })
+    expect(parseMidiFileMock).not.toHaveBeenCalled()
   })
 
   it('clamps previewIndex if updateSong removes the event it pointed at', async () => {
