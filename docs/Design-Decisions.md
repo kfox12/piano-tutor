@@ -513,3 +513,49 @@ The advance itself needed edge-detection (a `matchedRef` that's only cleared whe
 - _A pure reducer parallel to `practiceSessionReducer.ts`_ — would match the codebase's established functional-core/imperative-shell pattern more closely, but for a feature this small (one boolean edge-detector) it would add a reducer/action-type file for logic that fits in a few lines; the hook itself is still independently unit-tested via `renderHook`, so the testability goal is met without the extra structure.
 
 **Trade-offs:** Because chords only need one matching note, a user could technically "complete" a chord event by playing just its lowest or most convenient note every time, never the full chord — an accepted simplification given the monophonic hardware constraint, not something a different implementation choice could fix.
+
+---
+
+## 40. One JSON file per song under `userData/songs/`, no database or storage library
+
+**Decision:** A saved song is written whole as `<songId>.json` under `app.getPath('userData')/songs/`, via new `song:save`/`song:list`/`song:load`/`song:delete` IPC channels that mirror `dialog:selectMidiFile`'s shape exactly: main only opens a path and reads/writes bytes, never interprets the `Song` shape beyond `songId`/`title`/`events.length` (needed to build `song:list`'s lightweight summaries without loading every song's full content). No `electron-store`, `lowdb`, or SQLite.
+
+**Reasoning:** A personal collection of practiced songs is realistically tens of files, not thousands — `fs.readFile`/`writeFile` on small JSON documents is the entire implementation this actually needs, and it's the same "hand-roll the simple thing" call already made for the MIDI parser (entry 27). One file per song also makes each save/delete an independent, atomic-enough operation with no read-modify-write race against a shared index file.
+
+**Alternatives considered:**
+
+- _A single `songs-index.json` holding every song_ — one read gets the whole list, but every save/delete has to read-modify-write the entire file, and listing cheaply would still require loading full event data just to show a title (defeating the point of a lightweight list).
+- _`electron-store` or `lowdb`_ — handle the file-per-key JSON pattern for you, but add a dependency for something already fully covered by three `fs/promises` calls.
+- _SQLite_ — real overkill; would be the project's first structured-storage dependency for a requirement ("save a list of documents") that doesn't need querying, joins, or transactions.
+
+**Trade-offs:** No query capability beyond "list everything" — acceptable, since Song Library only ever needs the full list rendered as rows, never filtered/sorted server-side.
+
+---
+
+## 41. `Song.songId` optional, assigned on first save; one small cross-page state exception for "open from library"
+
+**Decision:** `Song.songId?: string` stays optional rather than being assigned at MIDI-import time — it's generated (`createSongId()`, mirroring `createEventId()`) only inside `useSongLibrary`'s `save()`, the first time a song is actually persisted. Separately, opening a song from `SongLibraryPage` needed a small, deliberate exception to "every page owns fully independent state" (entry 35): `App.tsx` holds one piece of shared state, `songIdToOpen`, set when a library row is clicked and consumed by `ImportSongPage` on mount via a new `loadExisting(song)` action on `useSongImport`.
+
+**Reasoning:** An imported-but-not-yet-saved song genuinely has no persisted identity — treating `songId` as optional models that truthfully, the same way a database row has no primary key before insert. For the navigation piece: the alternative to threading `songIdToOpen` through `App.tsx` would be either lifting all of `ImportSongPage`'s review state up to `App.tsx` (undoing the redesign's core simplification) or duplicating the entire review UI (keyboard, auto-advance, mic, segment tools) onto `SongLibraryPage` itself. One small piece of "which song to open" state is far cheaper than either, and it's narrowly scoped — it doesn't reintroduce shared state for anything else.
+
+**Alternatives considered:**
+
+- _Assign `songId` at import time (in `parseMidiFile`)_ — simpler in that every `Song` always has one, but means an id gets minted for songs that are only ever previewed and never saved, and a discarded import would still "claim" an id for no reason.
+- _Duplicate the review UI on `SongLibraryPage`_ — avoids cross-page state entirely, but duplicates a substantial amount of UI (keyboard, mic, auto-advance, segment tools) that already exists and works on `ImportSongPage`.
+
+**Trade-offs:** `App.tsx` is no longer *purely* a dumb view switch — it now carries one piece of cross-cutting state. Judged worth it, since the alternative costs were higher; if more cross-page flows like this emerge, worth revisiting whether a small shared context makes more sense than adding prop after prop.
+
+---
+
+## 42. Practice segments: event-id ranges, wrap-instead-of-clamp `stepPreview`, no new reducer
+
+**Decision:** A `SongSegment` (`{ id, name, startEventId, endEventId }`) references its range by event id, saved as part of `Song.segments`. `useSongImport`'s `stepPreview`/`updateSong`/a new `setActiveSegment` action became range-aware: with no active segment, navigation is byte-for-byte the original clamped behavior; with one active, reaching either end wraps to the other instead of stopping. `resolveSegmentBounds(song, segmentId)` (a pure function in `song.ts`) resolves a segment to current `[startIndex, endIndex]` fresh on every call — never cached — and falls back to the full song's range for a null, unknown, or dangling (edited-away) segment id rather than throwing.
+
+**Reasoning:** Event-id references, not indices, for the same reason `SongEvent.id` documents itself as stable across edits: editing the song shifts what index things live at, but not their id. Wrap-instead-of-clamp is the literal ask — "when they reach the end of the specified segment... it should restart back at the beginning" — and implementing it as a `stepPreview` bounds change (rather than a new mode/page/reducer) meant `useSongAutoAdvance`'s existing wiring in `ImportSongPage` started looping segments for free: it always just calls `stepPreview(1)`, and now that call's own bounds logic decides whether that's a clamp or a wrap. No changes were needed to the auto-advance hook itself. A graceful fallback in `resolveSegmentBounds` (rather than throwing or crashing) matters concretely here: `SongEditor` can delete an event a segment references while that segment is saved, and the app needs to degrade to full-song practice, not break.
+
+**Alternatives considered:**
+
+- _A parallel reducer/hook for segment practice, separate from `useSongImport`_ — would match the `usePracticeSession` functional-core pattern more literally, but "the segment acts identical to a shorter song" is exactly the requirement that made reusing `useSongImport`'s existing state machine (with range-aware bounds) the more direct implementation — a separate hook would have had to duplicate previewIndex/auto-advance/editor wiring wholesale.
+- _Store resolved start/end indices on the segment itself_ — cheaper to read, but exactly the staleness bug entry-id references exist to avoid; resolving fresh from ids is a `find()` over a typically-small event array, not a real cost.
+
+**Trade-offs:** `useSongImport` has grown a second axis of behavior (segment-aware vs. full-song bounds) inside one hook rather than being split into two — acceptable at this size, worth watching if segment logic grows more elaborate (e.g. per-segment tempo or scoring) in a future milestone.

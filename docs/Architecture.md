@@ -1,6 +1,6 @@
 # Architecture
 
-This describes the high-level shape of the app. Sections below note which parts are implemented (Milestones 0-5: project skeleton, mic capture, pitch detection, keyboard renderer, practice mode, song import; plus a UI redesign — multi-page navigation and theming — on `feature/ui-redesign`) versus still anticipated (song-based practice sessions, cross-session persistence, real Song Library/Test Mode content).
+This describes the high-level shape of the app. Sections below note which parts are implemented (Milestones 0-5: project skeleton, mic capture, pitch detection, keyboard renderer, practice mode, song import; a UI redesign — multi-page navigation and theming; disk persistence for songs and user-defined looping practice segments, on `feature/song-persistence`) versus still anticipated (a scored/trackable song-based practice session, real Test Mode content).
 
 ## Process Model (Electron)
 
@@ -25,12 +25,13 @@ Electron apps are split into two kinds of processes with different capabilities 
 - **Song preview auto-advance** (`src/renderer/src/song/useSongAutoAdvance.ts`) — playing the currently-previewed note/chord correctly advances `ImportSongPage`'s preview cursor automatically (`stepPreview(1)`), the same immediate-advance feel `usePracticeSession` gives random targets. A chord event is satisfied by hearing any one of its notes, since pitch detection is monophonic and can't confirm a full chord sounding at once. Edge-detected via a ref (fires once per sustained match, not once per animation frame) rather than a pure reducer, since a song's fixed note sequence can't lean on `pickRandomTarget`'s no-repeat trick the way Practice Mode does. This is a deliberately small slice of the still-undesigned "song-based practice session" (no scoring, no completion state) — see [Design-Decisions.md](Design-Decisions.md) entry 39.
 - **Navigation & layout** (`src/renderer/src/navigation.ts`, `src/renderer/src/layout/`) — `App.tsx` holds a single `view: View` state value (`'home' | 'import' | 'library' | 'practice' | 'test'`) and renders one page from `src/renderer/src/pages/` at a time; no routing library, see [Design-Decisions.md](Design-Decisions.md) entry 35. `AppShell` wraps every page: a minimal bar (brand + theme toggle) on the Home page, the full `TopNav` (all five views + theme toggle) everywhere else — the nav bar itself only appears once a mode is selected, keeping Home an uncluttered landing screen. `HomePage` is a three-card dashboard (Import New Song / Continue Practicing / Test Practice) that navigates via the same `onNavigate` callback. `SongLibraryPage` and `TestModePage` are both a shared `PlaceholderPage` component, since neither has real functionality yet — see [Design-Decisions.md](Design-Decisions.md) entry 37.
 - **Theming** (`src/renderer/src/theme/`) — `ThemeProvider` resolves light/dark once (stored choice, falling back to `prefers-color-scheme`) and stamps it onto `<html data-theme>`; `ThemeToggle` flips it and persists the choice to `localStorage`. `base.css` keys its color tokens off `[data-theme='light']`/`[data-theme='dark']` only — no CSS media query — so there's one source of truth for which theme is active. See [Design-Decisions.md](Design-Decisions.md) entry 36.
+- **Song persistence** (`src/renderer/src/song/useSongLibrary.ts`; IPC channels `song:save`/`song:list`/`song:load`/`song:delete` in `src/main/index.ts`) — songs save as one JSON file per song under `app.getPath('userData')/songs/`, following the same security-boundary pattern as `dialog:selectMidiFile`: main only reads/writes bytes to a path it controls, the renderer owns the `Song` shape and decides when to save. `Song.songId` is optional and assigned the first time a song is saved (mirrors `SongEvent.id` being assigned at parse time — an unsaved song genuinely has no persisted identity yet). `song:list` returns lightweight summaries (id, title, event count), not full song bodies, so `SongLibraryPage` stays cheap to load. `ImportSongPage` gained a "Save to Library"/"Update in Library" action; clicking a `SongLibraryPage` row opens that song via a new `loadExisting()` action on `useSongImport`, threaded through one small piece of shared state in `App.tsx` (`songIdToOpen`) — the one deliberate exception to pages otherwise owning fully independent state. See [Design-Decisions.md](Design-Decisions.md) entries 40-41.
+- **Practice segments** (`SongSegment`/`resolveSegmentBounds` in `src/renderer/src/song/song.ts`) — a segment is a user-named practice range referencing a start/end event by id (not index, for the same edit-stability reason `SongEvent.id` exists), stored as part of `Song.segments` and saved along with it. `ImportSongPage` lets the user mark a start/end while navigating with the existing Prev/Next controls, name it, and select it to practice. `useSongImport`'s `stepPreview` becomes range- and wrap-aware once a segment is active: full-song navigation is unchanged (clamps at the ends), but a segment wraps back to its start when advanced past its end (and to its end when stepped backward past its start) — "act identical to a shorter song," except looping instead of stopping, so it can be practiced repeatedly. This reuses the exact same auto-advance wiring (`useSongAutoAdvance`) that drives full-song playthrough — looping falls out of `stepPreview`'s own bounds logic, nothing about the auto-advance hook itself changed. See [Design-Decisions.md](Design-Decisions.md) entry 42.
 
 **Not yet built** — noted here to guide future folder/module structure:
 
 - `ProgressView` — displays practice history over time. (Superseded in intent — see below.)
-- Song-based practice session — a mode that steps through an imported `Song`'s events instead of `usePracticeSession`'s random targets. Will eventually back a real `SongLibraryPage`/`TestModePage`.
-- Disk persistence for imported songs (via IPC → main) — songs currently exist only in memory for the running session; `SongLibraryPage` is a placeholder until this exists.
+- A scored/trackable song-based practice session — turning the note-stepping (and now segment-looping) that already exists in Import Song into something with a completion/accuracy state, and a decision on whether it stays there or moves to `PracticeModePage`/`TestModePage`.
 
 ## Data Flow
 
@@ -41,16 +42,18 @@ Mic → Web Audio stream → PitchDetector → detected note → UI feedback (Ke
 
 MIDI file → IPC (main: file picker + raw bytes) → parseMidiFile (renderer) → Song → SongEditor
                                                                                         ↓
-                                                          (future) Song-based practice session
+                                                     Song preview + auto-advance (+ segment looping)
                                                                                         ↓
-                                                          (future) persistence (via IPC → main)
+                                          IPC (main: read/write JSON) ↔ song:save/list/load/delete
+                                                                                        ↓
+                                                          (future) scored song-based practice session
 ```
 
-The mic → pitch detection → `PitchReadout`/`KeyboardDisplay` (sharing one computed `PitchReading`, see [Design-Decisions.md](Design-Decisions.md) entry 13) → `PracticeSession` path is fully implemented. The song-import path (MIDI file → `Song` → `SongEditor`) is implemented through editing; a song-based practice session and disk persistence for songs are still anticipated, not built.
+The mic → pitch detection → `PitchReadout`/`KeyboardDisplay` (sharing one computed `PitchReading`, see [Design-Decisions.md](Design-Decisions.md) entry 13) → `PracticeSession` path is fully implemented. The song-import path (MIDI file → `Song` → `SongEditor` → save/load/practice-segments) is fully implemented through persistence; a *scored* song-based practice session is still anticipated, not built.
 
 ## Security Boundary
 
-The renderer never touches the filesystem directly. All filesystem access is proxied through the preload script and handled by the main process — standard Electron security practice, and it keeps a clean separation between "UI/audio" concerns and "system/storage" concerns. `dialog:selectMidiFile` (Milestone 5) is the first implementation of this: main owns the native file dialog and the raw `fs.readFile` call; the renderer only ever receives already-read bytes. Future persistence (saving imported songs, practice history) will follow the same pattern.
+The renderer never touches the filesystem directly. All filesystem access is proxied through the preload script and handled by the main process — standard Electron security practice, and it keeps a clean separation between "UI/audio" concerns and "system/storage" concerns. `dialog:selectMidiFile` (Milestone 5) was the first implementation of this; `song:save`/`song:list`/`song:load`/`song:delete` (song persistence) follow the identical shape — main only opens a path and reads/writes bytes, never interprets the `Song` shape beyond the few fields (`songId`/`title`/`events.length`) needed to build a cheap library listing.
 
 ## Out of Scope (for now)
 

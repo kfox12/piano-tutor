@@ -17,7 +17,8 @@ function testSong(): Song {
           { midi: 67, name: 'G', octave: 4 }
         ]
       }
-    ]
+    ],
+    segments: []
   }
 }
 

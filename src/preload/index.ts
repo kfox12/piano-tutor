@@ -1,9 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { PianoTutorApi } from './index.d'
 
 // Custom APIs for renderer
-const api = {
-  selectMidiFile: () => ipcRenderer.invoke('dialog:selectMidiFile')
+const api: PianoTutorApi = {
+  selectMidiFile: () => ipcRenderer.invoke('dialog:selectMidiFile'),
+  saveSong: (song) => ipcRenderer.invoke('song:save', song),
+  listSongs: () => ipcRenderer.invoke('song:list'),
+  loadSong: (songId) => ipcRenderer.invoke('song:load', songId),
+  deleteSong: (songId) => ipcRenderer.invoke('song:delete', songId)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
